@@ -1,0 +1,13 @@
+[package]
+name = "zinq_std_arm"
+version = "0.1.0"
+edition = "2021"
+description = "Zinq standard Arm architecture model"
+authors = ["Averardo <averardo_di_mugello@proton.me>"]
+
+[dependencies]
+zinq = { path = "../../../zinq" }
+
+[dev-dependencies]
+zinq = { path = "../../../zinq" }
+zinq_std_emu = { path = "../../emulator" }

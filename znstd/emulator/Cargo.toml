@@ -1,0 +1,9 @@
+[package]
+name = "zinq_std_emu"
+version = "0.1.0"
+edition = "2021"
+description = "Zinq standard emulators"
+authors = ["Averardo <averardo_di_mugello@proton.me>"]
+
+[dependencies]
+zinq = { path = "../../zinq" }

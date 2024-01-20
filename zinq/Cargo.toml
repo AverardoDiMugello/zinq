@@ -1,0 +1,9 @@
+[package]
+name = "zinq"
+version = "0.1.0"
+edition = "2021"
+description = "Zinq is not QEMU; it is a generic emulator framework."
+authors = ["Averardo <averardo_di_mugello@proton.me>"]
+
+[dependencies]
+num = "0.4.1"
