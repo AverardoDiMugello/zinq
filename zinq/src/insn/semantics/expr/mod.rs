@@ -2,10 +2,12 @@ use super::Var;
 
 mod convert;
 pub use convert::*;
+pub mod convert_macros;
 mod generic;
 pub use generic::*;
 mod typed;
 pub use typed::*;
+pub mod typed_macros;
 
 /// Expressions are organized based on types
 /// Expr[T] are "typed" expressions that operate on and produce data of type T
@@ -33,5 +35,5 @@ pub trait EvalCtx<T: Copy> {
 pub trait Eval<E: EvalCtx<Self::Output>> {
     type Output: Copy;
 
-    fn eval(self, emu_ctx: &E) -> Self::Output;
+    fn eval(self, eval_ctx: &E) -> Self::Output;
 }

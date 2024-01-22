@@ -3,8 +3,7 @@ use zinq::insn::{
     syntax::Decodable,
     Instruction,
 };
-use zinq::{assign, goto, lit, load, var};
-use zinq::{Error, Result};
+use zinq::*;
 
 use crate::Arm;
 
@@ -66,21 +65,16 @@ impl Instruction<Arm> for Branch {
     fn semanitcs<'ctx>(&self, ctx: &'ctx Arm) -> IrBlock<'ctx> {
         let mut code = IrBlock::new();
 
-        assign!(pc <= load!(&ctx.pc), in code);
+        assign_64!(pc <= read_proc_64!(&ctx.pc), in code);
 
         if self.op {
-            assign!(ret_addr <= Expr64::Arith(Arith::Add { a: var!(pc), b: lit!(4) }), in code);
-            code.write_ctx_64(&ctx.r[30], var!(ret_addr));
+            assign_64!(ret_addr <= add_64!(var!(pc), lit!(4)), in code);
+            write_proc_64!(var!(ret_addr) => &ctx.r[30], in code);
         }
 
-        assign!(
-            dst_addr <= Expr64::Arith(Arith::Add {
-                a: var!(pc),
-                b: lit!(self.imm as u64)
-            }), in code
-        );
+        assign_64!(dst_addr <= add_64!(var!(pc),lit!(self.imm as u64)), in code);
 
-        goto!(var!(dst_addr), in code);
+        goto_64!(var!(dst_addr), in code);
 
         code
     }

@@ -6,9 +6,6 @@ use expr::*;
 pub mod stmt;
 use stmt::*;
 
-// TODO:(
-pub mod macros;
-
 #[derive(Debug, Clone, Copy)]
 pub struct Var<T>(usize, PhantomData<T>);
 
@@ -21,10 +18,6 @@ impl<T> Var<T> {
 #[derive(Debug)]
 pub struct IrBlock<'p> {
     stmts: Vec<Stmt<'p>>,
-    // vals_bool: HashMap<usize, bool>,
-    // vals_32: HashMap<usize, u32>,
-    // vals_64: HashMap<usize, u64>,
-    // vals_128: HashMap<usize, u128>,
 }
 
 impl<'p> IntoIterator for IrBlock<'p> {
@@ -95,22 +88,22 @@ impl<'p> IrBlock<'p> {
         Var(self.stmts.len() - 1, PhantomData)
     }
 
-    pub fn write_ctx_bool(&mut self, ctx_var: &'p bool, val: Term<bool>) {
+    pub fn write_proc_bool(&mut self, ctx_var: &'p bool, val: Term<bool>) {
         self.stmts
             .push(Stmt::WriteProc(WriteProc::WriteBool { ctx_var, val }));
     }
 
-    pub fn write_ctx_32(&mut self, ctx_var: &'p u32, val: Term<u32>) {
+    pub fn write_proc_32(&mut self, ctx_var: &'p u32, val: Term<u32>) {
         self.stmts
             .push(Stmt::WriteProc(WriteProc::Write32 { ctx_var, val }));
     }
 
-    pub fn write_ctx_64(&mut self, ctx_var: &'p u64, val: Term<u64>) {
+    pub fn write_proc_64(&mut self, ctx_var: &'p u64, val: Term<u64>) {
         self.stmts
             .push(Stmt::WriteProc(WriteProc::Write64 { ctx_var, val }));
     }
 
-    pub fn write_ctx_128(&mut self, ctx_var: &'p u128, val: Term<u128>) {
+    pub fn write_proc_128(&mut self, ctx_var: &'p u128, val: Term<u128>) {
         self.stmts
             .push(Stmt::WriteProc(WriteProc::Write128 { ctx_var, val }));
     }

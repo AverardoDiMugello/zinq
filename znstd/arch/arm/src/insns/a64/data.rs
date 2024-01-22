@@ -3,14 +3,11 @@ use zinq::insn::{
     syntax::Decodable,
     Instruction,
 };
-use zinq::{Error, Result};
+use zinq::*;
 
 use crate::Arm;
 
 use super::{add_with_carry_64, reg_symbol};
-
-// tmp
-use zinq::{assign, load, store, var};
 
 #[derive(Clone, Debug)]
 pub struct ArithImm {
@@ -142,22 +139,22 @@ impl Instruction<Arm> for ArithImm {
         if self.sf {
             // operand1 = if n == 31 then SP[]<datasize-1:0> else X[n, datasize];
             let operand1 = if self.rn == 31 {
-                assign!(operand1 <= load!(ctx.sp()), in code);
+                assign_64!(operand1 <= read_proc_64!(ctx.sp()), in code);
                 operand1
             } else {
-                assign!(operand1 <= load!(&ctx.r[self.rn]), in code);
+                assign_64!(operand1 <= read_proc_64!(&ctx.r[self.rn]), in code);
                 operand1
             };
 
             let (operand2, carry) = if self.op {
                 // operand2 = Not(imm12)
-                assign!(op2 <= Expr64::Logic(Logic::Not(Term::Lit(self.imm as u64))), in code);
+                assign_64!(op2 <= not_64!(lit!(self.imm as u64)), in code);
                 // carry = 1
                 let carry = 1;
                 (op2, carry)
             } else {
                 // operand2 = imm
-                assign!(op2 <= Expr64::Term(Term::Lit(self.imm as u64)), in code);
+                assign_64!(op2 <= term_64!(lit!(self.imm as u64)), in code);
                 // carry = 0
                 let carry = 0;
                 (op2, carry)
@@ -168,18 +165,18 @@ impl Instruction<Arm> for ArithImm {
 
             if self.s {
                 // (PSTATE.N @ PSTATE.Z @ PSTATE.C @ PSTATE.V) = nzcv
-                store!(var!(n) => &ctx.pstate.n, in code);
-                store!(var!(z) => &ctx.pstate.z, in code);
-                store!(var!(c) => &ctx.pstate.c, in code);
-                store!(var!(v) => &ctx.pstate.v, in code);
+                write_proc_bool!(var!(n) => &ctx.pstate.n, in code);
+                write_proc_bool!(var!(z) => &ctx.pstate.z, in code);
+                write_proc_bool!(var!(c) => &ctx.pstate.c, in code);
+                write_proc_bool!(var!(v) => &ctx.pstate.v, in code);
             }
 
             if self.rd == 31 {
                 // SP_set() = ZeroExtend(result, 64)
-                code.write_ctx_64(ctx.sp(), Term::Var(result));
+                write_proc_64!(var!(result) => ctx.sp(), in code);
             } else {
                 // X_set(d, datasize) = result
-                code.write_ctx_64(&ctx.r[self.rd], Term::Var(result));
+                write_proc_64!(var!(result) => &ctx.r[self.rd], in code);
             }
         } else {
             dbg!("32-bit versions of instructions are not supported yet!");

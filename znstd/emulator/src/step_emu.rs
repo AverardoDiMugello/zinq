@@ -92,10 +92,6 @@ impl StepEmu {
                 emu_ctx.vals_bool.insert(
                     line_num,
                     match expr {
-                        ToBool::From32(t) => to_bool_from_num(t, emu_ctx),
-                        ToBool::From64(t) => to_bool_from_num(t, emu_ctx),
-                        ToBool::From128(t) => to_bool_from_num(t, emu_ctx),
-                        // Convert to bool via comparison
                         ToBool::Cmp32(expr) => expr.eval(emu_ctx),
                         ToBool::Cmp64(expr) => expr.eval(emu_ctx),
                         ToBool::Cmp128(expr) => expr.eval(emu_ctx),
@@ -106,7 +102,6 @@ impl StepEmu {
                 emu_ctx.vals_32.insert(
                     line_num,
                     match expr {
-                        To32::FromBool(t) => to_num_from_bool(t, emu_ctx),
                         To32::From64(expr) => expr.eval(emu_ctx),
                         To32::From128(expr) => expr.eval(emu_ctx),
                     },
@@ -116,7 +111,6 @@ impl StepEmu {
                 emu_ctx.vals_64.insert(
                     line_num,
                     match expr {
-                        To64::FromBool(t) => to_num_from_bool(t, emu_ctx),
                         To64::From32(expr) => expr.eval(emu_ctx),
                         To64::From128(expr) => expr.eval(emu_ctx),
                     },
@@ -126,7 +120,6 @@ impl StepEmu {
                 emu_ctx.vals_128.insert(
                     line_num,
                     match expr {
-                        To128::FromBool(t) => to_num_from_bool(t, emu_ctx),
                         To128::From32(expr) => expr.eval(emu_ctx),
                         To128::From64(expr) => expr.eval(emu_ctx),
                     },

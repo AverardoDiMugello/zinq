@@ -129,14 +129,22 @@ where
 
 /// Context read expression
 #[derive(Debug)]
-pub struct ReadCtx<'ctx, T: Copy>(&'ctx T);
+pub struct ReadProc<'p, T: Copy>(&'p T);
 
-impl<'ctx, T: Copy> ReadCtx<'ctx, T> {
-    pub fn new(v: &'ctx T) -> Self {
+impl<'p, T: Copy> ReadProc<'p, T> {
+    pub fn new(v: &'p T) -> Self {
         Self(v)
     }
+}
 
-    pub fn read(self) -> T {
+impl<'p, T, E> Eval<E> for ReadProc<'p, T>
+where
+    T: Copy,
+    E: EvalCtx<T>,
+{
+    type Output = T;
+
+    fn eval(self, _eval_ctx: &E) -> Self::Output {
         *self.0
     }
 }

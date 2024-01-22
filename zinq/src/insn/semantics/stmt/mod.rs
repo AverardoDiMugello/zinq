@@ -1,3 +1,5 @@
+pub mod macros;
+
 use super::expr::*;
 
 /// Statements alter the execution contexts (Processor(s), Memory, and Emulation)

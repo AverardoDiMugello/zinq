@@ -1,15 +1,12 @@
 use std::marker::PhantomData;
 
-use num::{One, Unsigned, Zero};
+use num::Unsigned;
 
 use super::{generic::Term, Eval, EvalCtx};
 
 /// Expressions for converting non-bool expressions into bool expressions
 #[derive(Debug)]
 pub enum ToBool {
-    From32(Term<u32>),
-    From64(Term<u64>),
-    From128(Term<u128>),
     Cmp32(Cmp<u32>),
     Cmp64(Cmp<u64>),
     Cmp128(Cmp<u128>),
@@ -51,7 +48,6 @@ where
 /// Expressions for converting non-32-bit expressions into 32-bit expressions
 #[derive(Debug)]
 pub enum To32 {
-    FromBool(Term<bool>),
     From64(TruncConv<u64, u32>),
     From128(TruncConv<u128, u32>),
 }
@@ -59,7 +55,6 @@ pub enum To32 {
 /// Expressions for converting non-64-bit expressions into 64-bit expressions
 #[derive(Debug)]
 pub enum To64 {
-    FromBool(Term<bool>),
     From32(ExtConv<u32, u64>),
     From128(TruncConv<u128, u64>),
 }
@@ -67,7 +62,6 @@ pub enum To64 {
 /// Expressions for converting non-128-bit expressions into 128-bit expressions
 #[derive(Debug)]
 pub enum To128 {
-    FromBool(Term<bool>),
     From32(ExtConv<u32, u128>),
     From64(ExtConv<u64, u128>),
 }
@@ -165,27 +159,5 @@ impl<E: EvalCtx<u128> + EvalCtx<u64>> Eval<E> for TruncConv<u128, u64> {
             Self::Signed(i, _) => i.eval(eval_ctx) as i128 as i64 as u64,
             Self::Zero(i, _) => i.eval(eval_ctx) as u64,
         }
-    }
-}
-
-/// Should this be here? Evaluation helper that converts to a bool
-pub fn to_bool_from_num<T, E>(t: Term<T>, eval_ctx: &E) -> bool
-where
-    T: Zero + Copy,
-    E: EvalCtx<T>,
-{
-    !t.eval(eval_ctx).is_zero()
-}
-
-/// Should this be here? Evaluation helper that converts from a bool
-pub fn to_num_from_bool<T, E>(t: Term<bool>, eval_ctx: &E) -> T
-where
-    T: One + Zero + Copy,
-    E: EvalCtx<bool>,
-{
-    if t.eval(eval_ctx) {
-        T::one()
-    } else {
-        T::zero()
     }
 }

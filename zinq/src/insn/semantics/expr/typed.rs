@@ -1,5 +1,5 @@
 use super::{
-    generic::{Arith, Bitwise, Logic, ReadCtx, Term},
+    generic::{Arith, Bitwise, Logic, ReadProc, Term},
     Eval, EvalCtx,
 };
 
@@ -8,7 +8,7 @@ use super::{
 pub enum ExprBool<'ctx> {
     Term(Term<bool>),
     Logic(Logic<bool>),
-    ReadCtx(ReadCtx<'ctx, bool>),
+    ReadProc(ReadProc<'ctx, bool>),
 }
 
 impl<'ctx, E: EvalCtx<bool>> Eval<E> for ExprBool<'ctx> {
@@ -18,7 +18,7 @@ impl<'ctx, E: EvalCtx<bool>> Eval<E> for ExprBool<'ctx> {
         match self {
             Self::Term(t) => t.eval(eval_ctx),
             Self::Logic(expr) => expr.eval(eval_ctx),
-            Self::ReadCtx(expr) => expr.read(),
+            Self::ReadProc(expr) => expr.eval(eval_ctx),
         }
     }
 }
@@ -30,7 +30,7 @@ pub enum Expr32<'ctx> {
     Logic(Logic<u32>),
     Arith(Arith<u32>),
     Bitwise(Bitwise<u32>),
-    ReadCtx(ReadCtx<'ctx, u32>),
+    ReadProc(ReadProc<'ctx, u32>),
 }
 
 impl<'ctx, E: EvalCtx<u32>> Eval<E> for Expr32<'ctx> {
@@ -42,7 +42,7 @@ impl<'ctx, E: EvalCtx<u32>> Eval<E> for Expr32<'ctx> {
             Self::Logic(expr) => expr.eval(eval_ctx),
             Self::Arith(expr) => expr.eval(eval_ctx),
             Self::Bitwise(expr) => expr.eval(eval_ctx),
-            Self::ReadCtx(expr) => expr.read(),
+            Self::ReadProc(expr) => expr.eval(eval_ctx),
         }
     }
 }
@@ -54,7 +54,7 @@ pub enum Expr64<'ctx> {
     Logic(Logic<u64>),
     Arith(Arith<u64>),
     Bitwise(Bitwise<u64>),
-    ReadCtx(ReadCtx<'ctx, u64>),
+    ReadProc(ReadProc<'ctx, u64>),
 }
 
 impl<'ctx, E: EvalCtx<u64>> Eval<E> for Expr64<'ctx> {
@@ -66,7 +66,7 @@ impl<'ctx, E: EvalCtx<u64>> Eval<E> for Expr64<'ctx> {
             Self::Logic(expr) => expr.eval(eval_ctx),
             Self::Arith(expr) => expr.eval(eval_ctx),
             Self::Bitwise(expr) => expr.eval(eval_ctx),
-            Self::ReadCtx(expr) => expr.read(),
+            Self::ReadProc(expr) => expr.eval(eval_ctx),
         }
     }
 }
@@ -78,7 +78,7 @@ pub enum Expr128<'ctx> {
     Logic(Logic<u128>),
     Arith(Arith<u128>),
     Bitwise(Bitwise<u128>),
-    ReadCtx(ReadCtx<'ctx, u128>),
+    ReadProc(ReadProc<'ctx, u128>),
 }
 
 impl<'ctx, E: EvalCtx<u128>> Eval<E> for Expr128<'ctx> {
@@ -90,7 +90,7 @@ impl<'ctx, E: EvalCtx<u128>> Eval<E> for Expr128<'ctx> {
             Self::Logic(expr) => expr.eval(eval_ctx),
             Self::Arith(expr) => expr.eval(eval_ctx),
             Self::Bitwise(expr) => expr.eval(eval_ctx),
-            Self::ReadCtx(expr) => expr.read(),
+            Self::ReadProc(expr) => expr.eval(eval_ctx),
         }
     }
 }
