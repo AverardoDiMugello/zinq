@@ -88,6 +88,14 @@ macro_rules! xor_bool {
     };
 }
 
+/// Bool equals expression
+#[macro_export]
+macro_rules! eq_bool {
+    ($a:expr, $b:expr) => {
+        ExprBool::Equals($a, $b)
+    };
+}
+
 // 32-bit
 
 /// 32-bit And expression

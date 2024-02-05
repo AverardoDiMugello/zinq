@@ -6,4 +6,5 @@ description = "Zinq is not QEMU; it is a generic emulator framework."
 authors = ["Averardo <averardo_di_mugello@proton.me>"]
 
 [dependencies]
+bitvec = "1.0.1"
 num = "0.4.1"

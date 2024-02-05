@@ -214,7 +214,7 @@ macro_rules! neq_128 {
 #[macro_export]
 macro_rules! trunc_64_to_32 {
     ($e:expr) => {
-        To32::From64(TruncConv::Zero($e, PhantomData))
+        To32::From64(TruncConv::Zero($e, std::marker::PhantomData))
     };
 }
 
@@ -222,7 +222,7 @@ macro_rules! trunc_64_to_32 {
 #[macro_export]
 macro_rules! strunc_64_to_32 {
     ($e:expr) => {
-        To32::From64(TruncConv::Signed($e, PhantomData))
+        To32::From64(TruncConv::Signed($e, std::marker::PhantomData))
     };
 }
 
@@ -230,7 +230,7 @@ macro_rules! strunc_64_to_32 {
 #[macro_export]
 macro_rules! trunc_128_to_32 {
     ($e:expr) => {
-        To32::From128(TruncConv::Zero($e, PhantomData))
+        To32::From128(TruncConv::Zero($e, std::marker::PhantomData))
     };
 }
 
@@ -238,7 +238,7 @@ macro_rules! trunc_128_to_32 {
 #[macro_export]
 macro_rules! strunc_128_to_32 {
     ($e:expr) => {
-        To32::From128(TruncConv::Signed($e, PhantomData))
+        To32::From128(TruncConv::Signed($e, std::marker::PhantomData))
     };
 }
 
@@ -250,7 +250,7 @@ macro_rules! strunc_128_to_32 {
 #[macro_export]
 macro_rules! zext_32_to_64 {
     ($e:expr) => {
-        To64::From32(ExtConv::Zero($e, PhantomData))
+        To64::From32(ExtConv::Zero($e, std::marker::PhantomData))
     };
 }
 
@@ -258,7 +258,7 @@ macro_rules! zext_32_to_64 {
 #[macro_export]
 macro_rules! sext_32_to_64 {
     ($e:expr) => {
-        To64::From32(ExtConv::Signed($e, PhantomData))
+        To64::From32(ExtConv::Signed($e, std::marker::PhantomData))
     };
 }
 
@@ -266,7 +266,7 @@ macro_rules! sext_32_to_64 {
 #[macro_export]
 macro_rules! trunc_128_to_64 {
     ($e:expr) => {
-        To64::From128(TruncConv::Zero($e, PhantomData))
+        To64::From128(TruncConv::Zero($e, std::marker::PhantomData))
     };
 }
 
@@ -274,7 +274,7 @@ macro_rules! trunc_128_to_64 {
 #[macro_export]
 macro_rules! strunc_128_to_64 {
     ($e:expr) => {
-        To64::From128(TruncConv::Signed($e, PhantomData))
+        To64::From128(TruncConv::Signed($e, std::marker::PhantomData))
     };
 }
 
@@ -286,7 +286,7 @@ macro_rules! strunc_128_to_64 {
 #[macro_export]
 macro_rules! zext_32_to_128 {
     ($e:expr) => {
-        To128::From32(ExtConv::Zero($expr, PhantomData))
+        To128::From32(ExtConv::Zero($expr, std::marker::PhantomData))
     };
 }
 
@@ -294,14 +294,14 @@ macro_rules! zext_32_to_128 {
 #[macro_export]
 macro_rules! sext_32_to_128 {
     ($e:expr) => {
-        To128::From32(ExtConv::Signed($expr, PhantomData))
+        To128::From32(ExtConv::Signed($expr, std::marker::PhantomData))
     };
 }
 /// Extend 64-bit value into 128-bit value
 #[macro_export]
 macro_rules! zext_64_to_128 {
     ($e:expr) => {
-        To128::From64(ExtConv::Zero($e, PhantomData))
+        To128::From64(ExtConv::Zero($e, std::marker::PhantomData))
     };
 }
 
@@ -309,6 +309,26 @@ macro_rules! zext_64_to_128 {
 #[macro_export]
 macro_rules! sext_64_to_128 {
     ($e:expr) => {
-        To128::From64(ExtConv::Signed($e, PhantomData))
+        To128::From64(ExtConv::Signed($e, std::marker::PhantomData))
+    };
+}
+
+/*
+ * Convert to address
+ */
+
+/// Convert 32-bit value to address
+#[macro_export]
+macro_rules! to_addr_from_32 {
+    ($e:expr) => {
+        ToAddr::From32($e)
+    };
+}
+
+/// Convert 64-bit value to address
+#[macro_export]
+macro_rules! to_addr_from_64 {
+    ($e:expr) => {
+        ToAddr::From64($e)
     };
 }

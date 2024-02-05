@@ -23,17 +23,18 @@ pub enum Expr<'p> {
     ToBool(ToBool),
     To32(To32),
     To64(To64),
+    ToAddr(ToAddr),
     To128(To128),
 }
 
 /// Look-up interface for implementors of the Eval trait. The look-up cannot fail
-pub trait EvalCtx<T: Copy> {
+pub trait ExecCtx<T: Copy> {
     fn look_up(&self, v: Var<T>) -> T;
 }
 
 /// Evaluate an expression
-pub trait Eval<E: EvalCtx<Self::Output>> {
+pub trait Eval<E: ExecCtx<Self::Output>> {
     type Output: Copy;
 
-    fn eval(self, eval_ctx: &E) -> Self::Output;
+    fn eval(self, exec_ctx: &E) -> Self::Output;
 }

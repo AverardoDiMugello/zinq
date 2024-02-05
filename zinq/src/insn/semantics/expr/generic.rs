@@ -1,6 +1,9 @@
-use std::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr, Sub};
+use std::{
+    fmt::Debug,
+    ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr, Sub},
+};
 
-use super::{super::Var, Eval, EvalCtx};
+use super::{super::Var, Eval, ExecCtx};
 
 /// All expressions terminate in a typed literal or variable
 #[derive(Debug)]
@@ -12,14 +15,14 @@ pub enum Term<T: Copy> {
 impl<T, E> Eval<E> for Term<T>
 where
     T: Copy,
-    E: EvalCtx<T>,
+    E: ExecCtx<T>,
 {
     type Output = T;
 
-    fn eval(self, eval_ctx: &E) -> Self::Output {
+    fn eval(self, exec_ctx: &E) -> Self::Output {
         match self {
             Self::Lit(v) => v,
-            Self::Var(v) => eval_ctx.look_up(v),
+            Self::Var(v) => exec_ctx.look_up(v),
         }
     }
 }
@@ -39,16 +42,16 @@ where
 impl<T, E> Eval<E> for Logic<T>
 where
     T: BitAnd<Output = T> + Not<Output = T> + BitOr<Output = T> + BitXor<Output = T> + Copy,
-    E: EvalCtx<T>,
+    E: ExecCtx<T>,
 {
     type Output = T;
 
-    fn eval(self, eval_ctx: &E) -> Self::Output {
+    fn eval(self, exec_ctx: &E) -> Self::Output {
         match self {
-            Self::And { a, b } => a.eval(eval_ctx) & b.eval(eval_ctx),
-            Self::Not(a) => !a.eval(eval_ctx),
-            Self::Or { a, b } => a.eval(eval_ctx) | b.eval(eval_ctx),
-            Self::Xor { a, b } => a.eval(eval_ctx) ^ b.eval(eval_ctx),
+            Self::And { a, b } => a.eval(exec_ctx) & b.eval(exec_ctx),
+            Self::Not(a) => !a.eval(exec_ctx),
+            Self::Or { a, b } => a.eval(exec_ctx) | b.eval(exec_ctx),
+            Self::Xor { a, b } => a.eval(exec_ctx) ^ b.eval(exec_ctx),
         }
     }
 }
@@ -66,14 +69,14 @@ where
 impl<T, E> Eval<E> for Arith<T>
 where
     T: Add<Output = T> + Sub<Output = T> + Copy,
-    E: EvalCtx<T>,
+    E: ExecCtx<T>,
 {
     type Output = T;
 
-    fn eval(self, eval_ctx: &E) -> Self::Output {
+    fn eval(self, exec_ctx: &E) -> Self::Output {
         match self {
-            Self::Add { a, b } => a.eval(eval_ctx) + b.eval(eval_ctx),
-            Self::Sub { a, b } => a.eval(eval_ctx) - b.eval(eval_ctx),
+            Self::Add { a, b } => a.eval(exec_ctx) + b.eval(exec_ctx),
+            Self::Sub { a, b } => a.eval(exec_ctx) - b.eval(exec_ctx),
         }
     }
 }
@@ -91,14 +94,14 @@ where
 impl<T, E> Eval<E> for Bitwise<T>
 where
     T: Shl<Output = T> + Shr<Output = T> + Copy,
-    E: EvalCtx<T>,
+    E: ExecCtx<T>,
 {
     type Output = T;
 
-    fn eval(self, eval_ctx: &E) -> Self::Output {
+    fn eval(self, exec_ctx: &E) -> Self::Output {
         match self {
-            Self::ShiftL { val, amt } => val.eval(eval_ctx) << amt.eval(eval_ctx),
-            Self::ShiftR { val, amt } => val.eval(eval_ctx) >> amt.eval(eval_ctx),
+            Self::ShiftL { val, amt } => val.eval(exec_ctx) << amt.eval(exec_ctx),
+            Self::ShiftR { val, amt } => val.eval(exec_ctx) >> amt.eval(exec_ctx),
         }
     }
 }
@@ -114,15 +117,15 @@ pub struct Select<T: Copy> {
 impl<T, E> Eval<E> for Select<T>
 where
     T: Copy,
-    E: EvalCtx<bool> + EvalCtx<T>,
+    E: ExecCtx<bool> + ExecCtx<T>,
 {
     type Output = T;
 
-    fn eval(self, eval_ctx: &E) -> Self::Output {
-        if self.cond.eval(eval_ctx) {
-            self.true_case.eval(eval_ctx)
+    fn eval(self, exec_ctx: &E) -> Self::Output {
+        if self.cond.eval(exec_ctx) {
+            self.true_case.eval(exec_ctx)
         } else {
-            self.false_case.eval(eval_ctx)
+            self.false_case.eval(exec_ctx)
         }
     }
 }
@@ -140,11 +143,11 @@ impl<'p, T: Copy> ReadProc<'p, T> {
 impl<'p, T, E> Eval<E> for ReadProc<'p, T>
 where
     T: Copy,
-    E: EvalCtx<T>,
+    E: ExecCtx<T>,
 {
     type Output = T;
 
-    fn eval(self, _eval_ctx: &E) -> Self::Output {
+    fn eval(self, _exec_ctx: &E) -> Self::Output {
         *self.0
     }
 }

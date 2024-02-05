@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::insn::Instruction;
-use crate::Result;
+use crate::{Error, Result};
 
 pub trait Processor: fmt::Debug + Sized {
     type Insn: Instruction<Self>;
@@ -37,7 +37,16 @@ impl<P: Processor> System<P> {
         &self.mem
     }
 
-    pub fn mem_mut(&mut self) -> &mut [u8] {
-        &mut self.mem
+    pub fn write_mem(&mut self, offset: usize, data: &[u8]) -> Result<()> {
+        self.mem
+            .get_mut(offset..offset + data.len())
+            .ok_or_else(|| {
+                Error(format!(
+                    "Unable to access memory[{offset:X}..{0}]",
+                    offset + data.len()
+                ))
+            })?
+            .copy_from_slice(data);
+        Ok(())
     }
 }

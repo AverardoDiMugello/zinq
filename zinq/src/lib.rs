@@ -15,3 +15,7 @@ impl fmt::Display for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+pub trait Emulator<S> {
+    fn run(&mut self, sys: &mut S);
+}

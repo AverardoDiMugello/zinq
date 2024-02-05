@@ -6,38 +6,56 @@ use super::expr::*;
 #[derive(Debug)]
 pub enum Stmt<'p> {
     Assignment(Expr<'p>),
-    WriteProc(WriteProc<'p>),
-    Branch(Branch<'p>),
+    ProcWrite(ProcWrite<'p>),
+    Branch(Branch),
     MemTx(MemTx),
-    Termination,
 }
 
 /// Statements for writing to processor context
 #[derive(Debug)]
-pub enum WriteProc<'p> {
-    WriteBool { ctx_var: &'p bool, val: Term<bool> },
-    Write32 { ctx_var: &'p u32, val: Term<u32> },
-    Write64 { ctx_var: &'p u64, val: Term<u64> },
-    Write128 { ctx_var: &'p u128, val: Term<u128> },
+pub enum ProcWrite<'p> {
+    WriteAddr {
+        ctx_var: &'p usize,
+        val: Term<usize>,
+    },
+    WriteBool {
+        ctx_var: &'p bool,
+        val: Term<bool>,
+    },
+    Write32 {
+        ctx_var: &'p u32,
+        val: Term<u32>,
+    },
+    Write64 {
+        ctx_var: &'p u64,
+        val: Term<u64>,
+    },
+    Write128 {
+        ctx_var: &'p u128,
+        val: Term<u128>,
+    },
 }
 
-impl<'p> WriteProc<'p> {
-    pub fn execute<E>(self, eval_ctx: &E)
+impl<'p> ProcWrite<'p> {
+    pub fn execute<E>(self, exec_ctx: &E)
     where
-        E: EvalCtx<bool> + EvalCtx<u32> + EvalCtx<u64> + EvalCtx<u128>,
+        E: ExecCtx<bool> + ExecCtx<u32> + ExecCtx<u64> + ExecCtx<u128> + ExecCtx<usize>,
     {
         match self {
+            Self::WriteAddr { ctx_var, val } => {
+                Self::mutate_immutable_var(ctx_var, val.eval(exec_ctx))
+            }
             Self::WriteBool { ctx_var, val } => {
-                Self::mutate_immutable_var(ctx_var, val.eval(eval_ctx))
+                Self::mutate_immutable_var(ctx_var, val.eval(exec_ctx))
             }
             Self::Write32 { ctx_var, val } => {
-                Self::mutate_immutable_var(ctx_var, val.eval(eval_ctx))
+                Self::mutate_immutable_var(ctx_var, val.eval(exec_ctx))
             }
             Self::Write64 { ctx_var, val } => {
-                Self::mutate_immutable_var(ctx_var, val.eval(eval_ctx))
+                Self::mutate_immutable_var(ctx_var, val.eval(exec_ctx))
             }
             Self::Write128 { ctx_var, val } => {
-                Self::mutate_immutable_var(ctx_var, val.eval(eval_ctx))
+                Self::mutate_immutable_var(ctx_var, val.eval(exec_ctx))
             }
         };
     }
@@ -53,14 +71,13 @@ impl<'p> WriteProc<'p> {
 }
 
 #[derive(Debug)]
-pub enum Branch<'p> {
-    IfElse {
-        cond: ExprBool<'p>,
-        true_case: usize,
-        false_case: usize,
+pub enum Branch {
+    Cond {
+        cond: Term<bool>,
+        true_case: Term<usize>,
+        false_case: Term<usize>,
     },
-    Goto32(Term<u32>),
-    Goto64(Term<u64>),
+    Uncond(Term<usize>),
 }
 
 #[derive(Debug)]

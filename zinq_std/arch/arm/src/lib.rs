@@ -45,12 +45,26 @@ impl Arm {
         }
     }
 
-    /// Get a reference to a general purpose register
-    pub fn x(&self, index: usize) -> Option<u64> {
-        self.r.get(index).and_then(|x| Some(*x))
+    /// Get the 64-bit value of a general purpose register
+    pub fn x(&self, index: usize) -> Result<u64> {
+        Ok(self
+            .r
+            .get(index)
+            .ok_or_else(|| Error(format!("No gpr {index}")))?
+            .to_owned())
     }
 
-    /// Get a reference to a general purpose register
+    /// Set a general purpose register to a 64-bit value
+    pub fn set_x(&mut self, index: usize, val: u64) -> Result<()> {
+        let x = self
+            .r
+            .get_mut(index)
+            .ok_or_else(|| Error(format!("No gpr {index}")))?;
+        *x = val;
+        Ok(())
+    }
+
+    /// Get the 32-bit value of a general purpose register
     pub fn w(&self, index: usize) -> Option<u32> {
         self.r.get(index).and_then(|x| Some(*x as u32))
     }
