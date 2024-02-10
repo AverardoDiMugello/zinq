@@ -9,5 +9,5 @@ insn_set!(
     a64::data::ArithImm,
     a64::data::MovImm,
     a64::branch::UncondImm,
-    a64::branch::Conditionally
+    a64::branch::Cond
 );

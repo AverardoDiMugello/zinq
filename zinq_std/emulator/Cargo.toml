@@ -6,4 +6,5 @@ description = "Zinq standard emulators"
 authors = ["Averardo <averardo_di_mugello@proton.me>"]
 
 [dependencies]
+bitvec = "1.0.1"
 zinq = { path = "../../zinq" }

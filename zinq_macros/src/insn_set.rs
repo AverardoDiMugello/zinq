@@ -23,7 +23,8 @@ pub fn codegen(input: TokenStream) -> TokenStream {
     let InsnSet { isa_name, insns } = parse_macro_input!(input);
 
     let mut scope = Scope::new();
-    let enum_name = format!("{isa_name}Insn").to_case(Case::UpperCamel);
+
+    let enum_name = format!("{isa_name}Instruction").to_case(Case::UpperCamel);
     let mut isa_enum = Enum::new(&enum_name);
     isa_enum.derive("Clone").derive("Debug").vis("pub");
 
@@ -31,13 +32,15 @@ pub fn codegen(input: TokenStream) -> TokenStream {
     isa_impl
         .impl_trait(format!("zinq::insn::Instruction<{isa_name}>"))
         .associate_type("InsnSize", "u32");
+    // .associate_type("InsnSize", "bitvec::BitArr!(for 32)");
+    // TODO: type is fake!
 
     let mut decode_fn = Function::new("decode");
     decode_fn
-        .arg("raw", "&[u8]")
-        .ret("zinq::Result<Self>")
-        .line("let raw_32 = u32::from_le_bytes(raw.get(0..4).unwrap().try_into().unwrap());");
-    // TODO: insn size is hard-coded here
+        .arg("bits", "&bitvec::prelude::BitSlice")
+        .ret("Option<Self>")
+        .line("let raw_32 = bitvec::field::BitField::load::<Self::InsnSize>(bits.get(0..32).unwrap());");
+    // TODO: this is fake!
 
     let mut name_fn = Function::new("name");
     name_fn.arg_ref_self().ret("String").line("match self {");
@@ -78,9 +81,9 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         isa_enum.new_variant(&variant_name).tuple(&path_w_sep);
 
         decode_fn.line(format!(
-            "if raw_32 & <{path_w_sep} as zinq::insn::syntax::Decodable<u32>>::FIXEDMASK == <{path_w_sep} as zinq::insn::syntax::Decodable<u32>>::FIXEDBITS {{"
+            "if <{path_w_sep} as zinq::insn::syntax::Decodable<Self::InsnSize>>::FIXEDMASK & raw_32 == <{path_w_sep} as zinq::insn::syntax::Decodable<Self::InsnSize>>::FIXEDBITS {{"
         ));
-        decode_fn.line(format!("return <{path_w_sep} as zinq::insn::Instruction<{isa_name}>>::decode(&raw).and_then(|insn| Ok({enum_name}::{variant_name}(insn)));"));
+        decode_fn.line(format!("return <{path_w_sep} as zinq::insn::Instruction<{isa_name}>>::decode(bits).and_then(|insn| Some({enum_name}::{variant_name}(insn)));"));
         decode_fn.line(format!("}}"));
 
         name_fn.line(format!("{enum_name}::{variant_name}(i) => i.name(),"));
@@ -94,7 +97,7 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         ));
     }
 
-    decode_fn.line("return Err(zinq::Error(format!(\"Undecodable instruction!\")))");
+    decode_fn.line("return None;");
     isa_impl.push_fn(decode_fn);
     name_fn.line("}");
     isa_impl.push_fn(name_fn);
@@ -112,9 +115,24 @@ pub fn codegen(input: TokenStream) -> TokenStream {
 
     scope
         .new_impl(&enum_name)
+        // .impl_trait("zinq::insn::syntax::Decodable<bitvec::BitArr!(for 32)>")
         .impl_trait("zinq::insn::syntax::Decodable<u32>")
-        .associate_const("FIXEDBITS", "u32", "0", "")
-        .associate_const("FIXEDMASK", "u32", "0", "");
+        .associate_const(
+            "FIXEDBITS",
+            // "bitvec::BitArr!(for 32)",
+            "u32",
+            // "bitvec::bitarr![const 0; 32]",
+            "0",
+            "",
+        )
+        .associate_const(
+            "FIXEDMASK",
+            // "bitvec::BitArr!(for 32)",
+            "u32",
+            // "bitvec::bitarr![const 0; 32]",
+            "0",
+            "",
+        );
     // TODO: insn size is hard-coded here
 
     scope.to_string().parse().unwrap()

@@ -1,10 +1,8 @@
-use zinq::insn::{
-    semantics::{expr::*, IrBlock},
-    syntax::Decodable,
-    Instruction,
-};
-use zinq::*;
+use bitvec::prelude::*;
 
+use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
+
+use crate::insns::a64::add_with_carry;
 use crate::{insns::a64, Arm};
 
 #[derive(Clone, Debug)]
@@ -14,54 +12,41 @@ pub struct ArithImm {
     op: bool,
     s: bool,
     sh: bool,
-    imm: u32,
+    imm12: BitArr!(for 12),
     rn: usize,
     rd: usize,
 }
 
-impl Decodable<u32> for ArithImm {
-    // TODO: update this to reflect combining all the arith immediate insns
-    const FIXEDBITS: u32 = 0b0001_0001_0000_0000_0000_0000_0000_0000;
-    const FIXEDMASK: u32 = 0b0001_1111_1000_0000_0000_0000_0000_0000;
+impl Decodable<a64::InsnSize> for ArithImm {
+    // const FIXEDBITS: a64::InsnSize = bitarr![const 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
+    // const FIXEDMASK: a64::InsnSize = bitarr![const 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0];
+    const FIXEDBITS: a64::InsnSize = 0b0001_0001_0000_0000_0000_0000_0000_0000;
+    const FIXEDMASK: a64::InsnSize = 0b0001_1111_1000_0000_0000_0000_0000_0000;
 }
 
 impl Instruction<Arm> for ArithImm {
-    type InsnSize = u32;
+    type InsnSize = a64::InsnSize;
 
-    fn decode(raw: &[u8]) -> Result<Self> {
-        let raw = u32::from_le_bytes(
-            raw.get(0..4)
-                .ok_or_else(|| Error(format!("Mem read fail")))?
-                .try_into()
-                .unwrap(),
-        );
+    fn decode(bits: &BitSlice) -> Option<Self> {
+        let mut imm12 = BitArray::ZERO;
+        imm12 |= bits.get(10..22)?;
 
-        let sf = bit!(31 of raw);
-        let op = bit!(30 of raw);
-        let s = bit!(29 of raw);
-        let sh = bit!(22 of raw);
-        let imm12 = slice!(raw from 10 for 12);
-        let rn = slice!(raw from 5 for 5);
-        let rd = slice!(raw from 0 for 5);
-
-        let imm = if sh { imm12 << 12 } else { imm12 };
-
-        Ok(Self {
-            raw,
-            sf,
-            op,
-            s,
-            sh,
-            imm,
-            rn: rn as usize,
-            rd: rd as usize,
+        Some(Self {
+            raw: bits.get(0..32)?.load(),
+            sf: *bits.get(31)?,
+            op: *bits.get(30)?,
+            s: *bits.get(29)?,
+            sh: *bits.get(22)?,
+            imm12,
+            rn: bits.get(5..10)?.load(),
+            rd: bits.get(0..5)?.load(),
         })
     }
 
     fn name(&self) -> String {
         // Subtract?
         if self.op {
-            // Signed?
+            // Setflags?
             if self.s {
                 // CMP special case
                 if self.rd == 0b11111 {
@@ -86,7 +71,7 @@ impl Instruction<Arm> for ArithImm {
         }
     }
 
-    fn assemble(&self) -> &u32 {
+    fn assemble(&self) -> &a64::InsnSize {
         &self.raw
     }
 
@@ -98,30 +83,31 @@ impl Instruction<Arm> for ArithImm {
         } else {
             String::new()
         };
+        let imm = self.imm12.load::<u32>();
 
         // Subtract?
         if self.op {
-            // Signed?
+            // Set flags?
             if self.s {
                 // CMP special case
                 if self.rd == 0b11111 {
-                    format!("CMP {rn}, #{0:X}{shift}", self.imm)
+                    format!("CMP {rn}, #{imm:X}{shift}")
                 } else {
-                    format!("SUBS {rd}, {rn}, #{0:X}{shift}", self.imm)
+                    format!("SUBS {rd}, {rn}, #{imm:X}{shift}")
                 }
             } else {
-                format!("SUB {rd}, {rn}, #{0:X}{shift}", self.imm)
+                format!("SUB {rd}, {rn}, #{imm:X}{shift}")
             }
         } else {
             if self.s {
                 // CMN special case
                 if self.rd == 0b11111 {
-                    format!("CMN {rn}, #{0:X}{shift}", self.imm)
+                    format!("CMN {rn}, #{imm:X}{shift}")
                 } else {
-                    format!("ADDS {rd}, {rn}, #{0:X}{shift}", self.imm)
+                    format!("ADDS {rd}, {rn}, #{imm:X}{shift}")
                 }
             } else {
-                format!("ADD {rd}, {rn}, #{0:X}{shift}", self.imm)
+                format!("ADD {rd}, {rn}, #{imm:X}{shift}")
             }
         }
     }
@@ -133,90 +119,236 @@ impl Instruction<Arm> for ArithImm {
     fn semantics<'p>(&self, proc: &'p Arm) -> IrBlock<'p> {
         let mut code = IrBlock::new();
 
-        let (result, n, z, c, v) = if self.sf {
-            // 64-bit variant
-            // operand1 = if n == 31 then SP[]<datasize-1:0> else X[n, datasize];
-            let operand1 = if self.rn == 31 {
-                assign_64!(operand1 <= read_proc_64!(proc.sp()), in code);
-                operand1
+        // Decode
+        let datasize = if self.sf { 64 } else { 32 };
+        let imm = {
+            let mut imm = if self.sh {
+                let mut imm = bitvec![0;12];
+                imm.extend_from_bitslice(&self.imm12);
+                imm
             } else {
-                assign_64!(operand1 <= read_proc_64!(&proc.r[self.rn]), in code);
-                operand1
+                self.imm12.to_bitvec()
             };
-
-            let (operand2, carry) = if self.op {
-                // operand2 = Not(imm12)
-                assign_64!(op2 <= not_64!(lit!(self.imm as u64)), in code);
-                // carry = 1
-                let carry = 1;
-                (op2, carry)
-            } else {
-                // operand2 = imm
-                assign_64!(op2 <= term_64!(lit!(self.imm as u64)), in code);
-                // carry = 0
-                let carry = 0;
-                (op2, carry)
-            };
-
-            // (result, nzcv) = AddWithCarry(operand1, operand2, carry_in);
-            a64::add_with_carry_64(operand1, operand2, carry, &mut code)
-        } else {
-            // 32-bit variant
-            // operand1 = if n == 31 then SP[]<datasize-1:0> else X[n, datasize];
-            let (rn, operand1) = if self.rn == 31 {
-                assign_64!(rn <= read_proc_64!(proc.sp()), in code);
-                assign_32_from!(operand1 <= trunc_64_to_32!(var!(rn)), in code);
-                (rn, operand1)
-            } else {
-                assign_64!(rn <= read_proc_64!(&proc.r[self.rn]), in code);
-                assign_32_from!(operand1 <= trunc_64_to_32!(var!(rn)), in code);
-                (rn, operand1)
-            };
-
-            let (operand2, carry) = if self.op {
-                // operand2 = Not(imm12)
-                assign_32!(op2 <= not_32!(lit!(self.imm)), in code);
-                // carry = 1
-                let carry = 1;
-                (op2, carry)
-            } else {
-                // operand2 = imm
-                assign_32!(op2 <= term_32!(lit!(self.imm)), in code);
-                // carry = 0
-                let carry = 0;
-                (op2, carry)
-            };
-
-            // (result, nzcv) = AddWithCarry(operand1, operand2, carry_in);
-            let (result, n, z, c, v) = a64::add_with_carry_32(operand1, operand2, carry, &mut code);
-
-            // Merge lower 32-bits of result into rn
-            let mask = (1 << 32) - 1 as u64;
-            assign_64_from!(b <= zext_32_to_64!(var!(result)), in code);
-            assign_64!(a_or_b <= or_64!(var!(rn), var!(b)), in code);
-            assign_64!(and_mask <= and_64!(var!(a_or_b), lit!(mask)), in code);
-            assign_64!(result <= or_64!(var!(rn), var!(and_mask)), in code);
-            (result, n, z, c, v)
+            imm.resize(datasize, false);
+            imm
         };
 
-        if self.s {
-            // (PSTATE.N @ PSTATE.Z @ PSTATE.C @ PSTATE.V) = nzcv
-            proc_write_bool!(var!(n) => &proc.pstate.n, in code);
-            proc_write_bool!(var!(z) => &proc.pstate.z, in code);
-            proc_write_bool!(var!(c) => &proc.pstate.c, in code);
-            proc_write_bool!(var!(v) => &proc.pstate.v, in code);
-        }
-
-        if self.rd == 31 {
-            // SP_set() = ZeroExtend(result, 64)
-            proc_write_64!(var!(result) => proc.sp(), in code);
+        // let operand1 : bits('datasize) = if n == 31 then
+        //   SP_read()[datasize - 1 .. 0]
+        // else
+        //   X_read(n, datasize);
+        let operand1 = if self.rn == 31 {
+            code.assign(Expr::ReadProc(&proc.sp()))
         } else {
-            // X_set(d, datasize) = result
-            proc_write_64!(var!(result) => &proc.r[self.rd], in code);
+            code.assign(Expr::ReadProc(&proc.r[self.rn]))
+        };
+        let operand1 = code.assign(Expr::Slice {
+            val: Term::Var(operand1),
+            start: 0,
+            len: datasize,
+        });
+
+        // operand2 : bits('datasize) = imm;
+        // nzcv : bits(4) = undefined;
+        // carry_in : bits(1) = undefined;
+        // if sub_op then {
+        //     operand2 = not_vec(operand2);
+        //     carry_in = 0b1
+        // } else {
+        //     carry_in = 0b0
+        // };
+        let (operand2, carry_in) = if self.op {
+            let operand2 = code.assign(Expr::Unary(UnaOp::Not, Term::Lit(imm)));
+            (operand2, true)
+        } else {
+            let operand2 = code.assign(Expr::Term(Term::Lit(imm)));
+            (operand2, false)
+        };
+
+        // (result, nzcv) = AddWithCarry(operand1, operand2, carry_in);
+        let (result, (n, z, c, v)) =
+            add_with_carry(operand1, operand2, carry_in, datasize, &mut code);
+
+        // if setflags then {
+        //     (PSTATE.N @ PSTATE.Z @ PSTATE.C @ PSTATE.V) = nzcv
+        // };
+        if self.s {
+            code.write_proc(&proc.pstate.n, 0, Term::Var(n));
+            code.write_proc(&proc.pstate.z, 0, Term::Var(z));
+            code.write_proc(&proc.pstate.c, 0, Term::Var(c));
+            code.write_proc(&proc.pstate.v, 0, Term::Var(v));
         }
 
+        // if d == 31 & not_bool(setflags) then {
+        //     SP_set() = ZeroExtend(result, 64)
+        // } else {
+        //     X_set(d, datasize) = result
+        // }
+        if self.rd == 31 && !self.s {
+            let zext_result = code.assign(Expr::Zext {
+                val: Term::Var(result),
+                size: 64,
+            });
+            code.write_proc(&proc.sp(), 0, Term::Var(zext_result));
+        } else {
+            a64::x_set(proc, self.rd, Term::Var(result), &mut code);
+        }
+
+        // Increment PC
         a64::next_insn(proc, &mut code);
 
         code
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zinq::{
+        system::{Processor, System},
+        Emulator,
+    };
+    use zinq_std_emu::StepEmu;
+
+    fn run_test(test_case: &[u8], mem_size: usize, x0: u64) -> System<Arm> {
+        let mut vm = System::new(Arm::v8(), mem_size);
+        vm.write_mem(0, test_case).unwrap();
+
+        let proc = vm.proc_mut();
+        proc.set_ip(0);
+        proc.set_x(0, x0);
+
+        let mut emu = StepEmu::new();
+        emu.max_insns(1);
+        emu.run(&mut vm);
+        vm
+    }
+
+    #[test]
+    fn add_64() {
+        // ADD X1, X0, #1
+        let test_case = [0x01, 0x04, 0x00, 0x91];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 + 1));
+    }
+
+    #[test]
+    fn add_32() {
+        // ADD W1, W0, #1
+        let test_case = [0x01, 0x04, 0x00, 0x11];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(1));
+    }
+
+    #[test]
+    fn add_sh_64() {
+        // ADD X1, X0, #1, LSL #12
+        let test_case = [0x01, 0x04, 0x40, 0x91];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 + (1 << 12)));
+    }
+
+    #[test]
+    fn add_sh_32() {
+        // ADD W1, W0, #1, LSL #12
+        let test_case = [0x01, 0x04, 0x40, 0x11];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(1 << 12));
+    }
+
+    #[test]
+    fn sub_64() {
+        // SUB X1, X0, #1
+        let test_case = [0x01, 0x04, 0x00, 0xD1];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 - 1));
+    }
+
+    #[test]
+    fn sub_32() {
+        // SUB W1, W0, #1
+        let test_case = [0x01, 0x04, 0x00, 0x51];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(0x00000000ffffffff));
+    }
+
+    #[test]
+    fn sub_sh_64() {
+        // SUB X1, X0, #1, LSL #12
+        let test_case = [0x01, 0x04, 0x40, 0xD1];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 - (1 << 12)));
+    }
+
+    #[test]
+    fn sub_sh_32() {
+        // SUB W1, W0, #1, LSL #12
+        let test_case = [0x01, 0x04, 0x40, 0x51];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().x(1), Some(0x00000000fffff000));
+    }
+
+    #[test]
+    fn flag_negative_64() {
+        // ADDS X1, X0, #1
+        let test_case = [0x01, 0x04, 0x00, 0xB1];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().n(), true);
+    }
+
+    #[test]
+    fn flag_negative_32() {
+        // ADDS W1, W0, #-1
+        let test_case = [0x01, 0x04, 0x00, 0x71];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().n(), true);
+    }
+
+    #[test]
+    fn flag_zero_64() {
+        // SUBS X1, X0, #1
+        let test_case = [0x01, 0x04, 0x00, 0xF1];
+        let vm = run_test(&test_case, 8, 1);
+        assert_eq!(vm.proc().z(), true);
+    }
+
+    #[test]
+    fn flag_zero_32() {
+        // SUBS W1, W0, #0
+        let test_case = [0x01, 0x00, 0x00, 0x71];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        assert_eq!(vm.proc().z(), true);
+    }
+
+    #[test]
+    fn flag_carry_64() {
+        // ADDS X1, X0, #1, LSL #12
+        let test_case = [0x01, 0x04, 0x40, 0xB1];
+        let vm = run_test(&test_case, 8, 0xfffffffffffff000);
+        assert_eq!(vm.proc().c(), true);
+    }
+
+    #[test]
+    fn flag_carry_32() {
+        // ADDS W1, W0, #1, LSL #12
+        let test_case = [0x01, 0x04, 0x40, 0x31];
+        let vm = run_test(&test_case, 8, 0x00000000fffff000);
+        assert_eq!(vm.proc().c(), true);
+    }
+
+    #[test]
+    fn flag_overflow_64() {
+        // ADDS X1, X0, #1
+        let test_case = [0x01, 0x04, 0x00, 0xB1];
+        let vm = run_test(&test_case, 8, 0x7fffffffffffffff);
+        assert_eq!(vm.proc().v(), true);
+    }
+
+    #[test]
+    fn flag_overflow_32() {
+        // ADDS W1, W0, #1
+        let test_case = [0x01, 0x04, 0x00, 0x31];
+        let vm = run_test(&test_case, 8, 0x000000007fffffff);
+        assert_eq!(vm.proc().v(), true);
     }
 }

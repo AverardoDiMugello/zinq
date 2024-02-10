@@ -1,9 +1,5 @@
-use zinq::insn::{
-    semantics::{expr::*, IrBlock},
-    syntax::Decodable,
-    Instruction,
-};
-use zinq::*;
+use bitvec::prelude::*;
+use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{insns::a64, Arm};
 
@@ -21,7 +17,7 @@ impl From<(bool, bool)> for MovOp {
 
         match (opc_1, opc_0) {
             (false, false) => MovOp::N,
-            (false, true) => panic!("This MovImm should've never been created..."),
+            (false, true) => panic!("Unreachable"),
             (true, false) => MovOp::Z,
             (true, true) => MovOp::K,
         }
@@ -35,53 +31,42 @@ pub struct MovImm {
     opc: MovOp,
     hw_1: bool,
     hw_0: bool,
-    imm16: u32,
-    pos: u32,
+    imm16: BitArr!(for 16),
     rd: usize,
 }
 
-impl Decodable<u32> for MovImm {
-    const FIXEDBITS: u32 = 0b0001_0010_1000_0000_0000_0000_0000_0000;
-    const FIXEDMASK: u32 = 0b0001_1111_1000_0000_0000_0000_0000_0000;
+impl Decodable<a64::InsnSize> for MovImm {
+    const FIXEDBITS: a64::InsnSize = 0b0001_0010_1000_0000_0000_0000_0000_0000;
+    const FIXEDMASK: a64::InsnSize = 0b0001_1111_1000_0000_0000_0000_0000_0000;
 }
 
 impl Instruction<Arm> for MovImm {
-    type InsnSize = u32;
+    type InsnSize = a64::InsnSize;
 
-    fn decode(raw: &[u8]) -> Result<Self> {
-        let raw = u32::from_le_bytes(
-            raw.get(0..4)
-                .ok_or_else(|| Error(format!("Mem read fail")))?
-                .try_into()
-                .unwrap(),
-        );
+    fn decode(bits: &BitSlice) -> Option<Self> {
+        let mut imm16 = BitArray::ZERO;
+        imm16 |= bits.get(5..21)?;
 
-        let sf = bit!(31 of raw);
-        let opc_1 = bit!(30 of raw);
-        let opc_0 = bit!(29 of raw);
-        let hw_1 = bit!(22 of raw);
-        let hw_0 = bit!(21 of raw);
-        let imm16 = slice!(raw from 5 for 16);
-        let rd = slice!(raw from 0 for 4);
+        let insn = Self {
+            raw: bits.get(0..32)?.load(),
+            sf: *bits.get(31)?,
+            opc: bits.get(29..31).and_then(|bits| match (bits[1], bits[0]) {
+                (false, false) => Some(MovOp::N),
+                (false, true) => None,
+                (true, false) => Some(MovOp::Z),
+                (true, true) => Some(MovOp::K),
+            })?,
+            hw_1: *bits.get(22)?,
+            hw_0: *bits.get(21)?,
+            imm16,
+            rd: bits.get(0..5)?.load(),
+        };
 
-        let opc = MovOp::from((opc_0, opc_1));
-
-        if !sf && hw_1 {
-            return Err(Error(format!("Undefined instruction")));
+        if !insn.sf && insn.hw_1 {
+            return None; // Undefined
         }
 
-        let pos = ((hw_1 as u32) << 1) | (hw_0 as u32) << 4;
-
-        Ok(Self {
-            raw,
-            sf,
-            opc,
-            hw_1,
-            hw_0,
-            imm16,
-            pos,
-            rd: rd as usize,
-        })
+        Some(insn)
     }
 
     fn name(&self) -> String {
@@ -97,7 +82,16 @@ impl Instruction<Arm> for MovImm {
     }
 
     fn disassemble(&self) -> String {
-        self.name()
+        let name = self.name();
+        let rd = a64::reg_symbol(self.sf, self.rd);
+        let imm = self.imm16.load::<u32>();
+        let pos = (((self.hw_1 as usize) << 1) | (self.hw_0 as usize)) << 4;
+        let shift = if pos > 0 {
+            format!(", LSL #{pos}")
+        } else {
+            String::new()
+        };
+        format!("{name} {rd}, #{imm}{shift}")
     }
 
     fn size(&self) -> usize {
@@ -107,57 +101,120 @@ impl Instruction<Arm> for MovImm {
     fn semantics<'p>(&self, proc: &'p Arm) -> IrBlock<'p> {
         let mut code = IrBlock::new();
 
-        // 64-bit variant
-        if self.sf {
-            let result = if let MovOp::K = self.opc {
-                assign_64!(result <= read_proc_64!(&proc.r[self.rd]), in code);
-                result
-            } else {
-                assign_64!(result <= term_64!(lit!(0)), in code);
-                result
-            };
+        // Decode
+        let datasize = if self.sf { 64 } else { 32 };
+        let pos = (((self.hw_1 as usize) << 1) | (self.hw_0 as usize)) << 4;
 
-            let mask = (ones![16] << self.pos) as u64;
-            let b = (self.imm16 << self.pos) as u64;
-            let b_and_mask = b & mask;
-            assign_64!(a_and_not_mask <= and_64!(var!(result), lit!(!mask)), in code);
-            assign_64!(result <= or_64!(var!(a_and_not_mask), lit!(b_and_mask)), in code);
+        // result : bits('datasize) = undefined;
+        // if opcode == MoveWideOp_K then {
+        //     result = X_read(d, datasize)
+        // } else {
+        //     result = Zeros(datasize)
+        // };
+        let result = match self.opc {
+            MovOp::K => code.assign(Expr::ReadProc(&proc.r[self.rd])),
+            _ => code.assign(Expr::Term(Term::Lit(bitvec!(0; 64)))),
+        };
+        let result = code.assign(Expr::Slice {
+            val: Term::Var(result),
+            start: 0,
+            len: datasize,
+        });
 
-            let result = if let MovOp::N = self.opc {
-                assign_64!(result <= not_64!(var!(result)), in code);
-                result
-            } else {
-                result
-            };
+        // result[pos + 15 .. pos] = imm;
+        let result = code.assign(Expr::Merge {
+            lhs: Term::Var(result),
+            start_lhs: pos,
+            rhs: Term::Lit(self.imm16.to_bitvec()),
+            start_rhs: 0,
+            len: 16,
+        });
 
-            proc_write_64!(var!(result) => &proc.r[self.rd], in code);
-        } else {
-            // let result = if let MovOp::K = self.opc {
-            //     assign_64!(rd <= read_proc_64!(&proc.r[self.rd]), in code);
-            //     assign_32_from!(result <= trunc_64_to_32!(var!(rd)), in code);
-            //     result
-            // } else {
-            //     assign_64!(result <= term_32!(lit!(0)), in code)
-            // };
+        // if opcode == MoveWideOp_N then {
+        //     result = not_vec(result)
+        // };
+        let result = match self.opc {
+            MovOp::N => code.assign(Expr::Unary(UnaOp::Not, Term::Var(result))),
+            _ => result,
+        };
 
-            // let mask = (ones![16] << self.pos) as u32;
-            // let b = (self.imm16 << self.pos) as u32;
-            // let b_and_mask = b & mask;
-            // assign_64!(a_and_not_mask <= and_64!(var!(result), lit!(!mask)), in code);
-            // assign_64!(result <= or_64!(var!(a_and_not_mask), lit!(b_and_mask)), in code);
-
-            // let result = if let MovOp::N = self.opc {
-            //     assign_64!(result <= not_64!(var!(result)), in code);
-            //     result
-            // } else {
-            //     result
-            // };
-
-            // proc_write_64!(var!(result) => &proc.r[self.rd], in code);
-        }
+        // X_set(d, datasize) = result
+        a64::x_set(proc, self.rd, Term::Var(result), &mut code);
 
         a64::next_insn(proc, &mut code);
 
         code
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zinq::{
+        system::{Processor, System},
+        Emulator,
+    };
+    use zinq_std_emu::StepEmu;
+
+    fn run_test(test_case: &[u8], mem_size: usize, x0: u64) -> System<Arm> {
+        let mut vm = System::new(Arm::v8(), mem_size);
+        vm.write_mem(0, test_case).unwrap();
+
+        let proc = vm.proc_mut();
+        proc.set_ip(0);
+        proc.set_x(0, x0);
+
+        let mut emu = StepEmu::new();
+        emu.max_insns(1);
+        emu.run(&mut vm);
+        vm
+    }
+
+    #[test]
+    fn movk_64() {
+        // MOVK X0, #1, LSL 48
+        let test_case = [0x20, 0x00, 0xE0, 0xF2];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(vm.proc().x(0), Some(0x0001aaaaaaaaaaaa));
+    }
+
+    #[test]
+    fn movk_32() {
+        // MOVK W0, #1
+        let test_case = [0x20, 0x00, 0x80, 0x72];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(vm.proc().x(0), Some(0xaaaaaaaaaaaa0001));
+    }
+
+    #[test]
+    fn movn_64() {
+        // MOVN X0, #1, LSL 16
+        let test_case = [0x20, 0x00, 0xA0, 0x92];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(vm.proc().x(0), Some(0xfffffffffffeffff));
+    }
+
+    #[test]
+    fn movn_32() {
+        // MOVN X0, #1, LSL 16
+        let test_case = [0x20, 0x00, 0xA0, 0x12];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(vm.proc().x(0), Some(0xaaaaaaaafffeffff));
+    }
+
+    #[test]
+    fn movz_64() {
+        // MOVZ X0, #1, LSL 32
+        let test_case = [0x20, 0x00, 0xC0, 0xD2];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(vm.proc().x(0), Some(0x100000000));
+    }
+
+    #[test]
+    fn movz_32() {
+        // MOVZ W0, #1, LSL 16
+        let test_case = [0x20, 0x00, 0xA0, 0x52];
+        let vm = run_test(&test_case, 8, 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(vm.proc().x(0), Some(0xaaaaaaaa00010000));
     }
 }
