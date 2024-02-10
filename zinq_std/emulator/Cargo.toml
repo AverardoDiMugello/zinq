@@ -1,10 +1,10 @@
 [package]
-name = "zinq"
+name = "zinq_std_emu"
 version = "0.1.0"
 edition = "2021"
-description = "Zinq is not QEMU; it is a generic emulator framework."
+description = "Zinq standard emulators"
 authors = ["Averardo <averardo_di_mugello@proton.me>"]
 
 [dependencies]
 bitvec = "1.0.1"
-num = "0.4.1"
+zinq = { path = "../../zinq" }
