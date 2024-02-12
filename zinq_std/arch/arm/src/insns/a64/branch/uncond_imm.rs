@@ -42,12 +42,12 @@ impl Instruction<Arm> for UncondImm {
         &self.raw
     }
 
-    fn disassemble(&self) -> String {
-        let imm = self.imm26.load::<isize>() << 2;
+    fn disassemble(&self, proc: &Arm) -> String {
+        let label = proc.pc.load::<isize>() + (self.imm26.load::<isize>() << 2);
         if self.op {
-            format!("BL #{imm:X}")
+            format!("BL #{label:X}")
         } else {
-            format!("B #{imm:X}")
+            format!("B #{label:X}")
         }
     }
 
@@ -95,8 +95,9 @@ impl Instruction<Arm> for UncondImm {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
+    use crate::Version::Armv9p4a;
     use zinq::{
         system::{Processor, System},
         Emulator,
@@ -104,7 +105,7 @@ mod test {
     use zinq_std_emu::StepEmu;
 
     fn run_test(test_case: &[u8], start_addr: usize) -> System<Arm> {
-        let mut vm = System::new(Arm::v8(), 64);
+        let mut vm = System::new(Arm::new(Armv9p4a), 64);
         vm.write_mem(start_addr, test_case).unwrap();
 
         let proc = vm.proc_mut();

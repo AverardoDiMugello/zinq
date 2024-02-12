@@ -6,7 +6,7 @@ use crate::{Error, Result};
 pub trait Processor: fmt::Debug + Sized {
     type Insn: Instruction<Self>;
 
-    fn name(&self) -> &str;
+    fn name(&self) -> String;
     fn ip(&self) -> usize;
     fn set_ip(&mut self, addr: usize);
     fn fetch_decode(&self, addr: usize, mem: &[u8]) -> Result<Self::Insn>;

@@ -1,7 +1,10 @@
 use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
-use crate::{insns::a64, Arm};
+use crate::{
+    insns::{a64, helpers::*},
+    Arm,
+};
 
 #[derive(Debug, Clone)]
 enum MovOp {
@@ -81,9 +84,9 @@ impl Instruction<Arm> for MovImm {
         &self.raw
     }
 
-    fn disassemble(&self) -> String {
+    fn disassemble(&self, _proc: &Arm) -> String {
         let name = self.name();
-        let rd = a64::reg_symbol(self.sf, self.rd);
+        let rd = reg_symbol(self.sf, self.rd);
         let imm = self.imm16.load::<u32>();
         let pos = (((self.hw_1 as usize) << 1) | (self.hw_0 as usize)) << 4;
         let shift = if pos > 0 {
@@ -112,14 +115,9 @@ impl Instruction<Arm> for MovImm {
         //     result = Zeros(datasize)
         // };
         let result = match self.opc {
-            MovOp::K => code.assign(Expr::ReadProc(&proc.r[self.rd])),
-            _ => code.assign(Expr::Term(Term::Lit(bitvec!(0; 64)))),
+            MovOp::K => x_read(self.rd, datasize, proc, &mut code),
+            _ => zeros(datasize, &mut code),
         };
-        let result = code.assign(Expr::Slice {
-            val: Term::Var(result),
-            start: 0,
-            len: datasize,
-        });
 
         // result[pos + 15 .. pos] = imm;
         let result = code.assign(Expr::Merge {
@@ -139,9 +137,9 @@ impl Instruction<Arm> for MovImm {
         };
 
         // X_set(d, datasize) = result
-        a64::x_set(proc, self.rd, Term::Var(result), &mut code);
+        x_set(self.rd, Term::Var(result), proc, &mut code);
 
-        a64::next_insn(proc, &mut code);
+        inc_pc(proc, &mut code);
 
         code
     }
@@ -150,6 +148,7 @@ impl Instruction<Arm> for MovImm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Version::Armv9p4a;
     use zinq::{
         system::{Processor, System},
         Emulator,
@@ -157,7 +156,7 @@ mod tests {
     use zinq_std_emu::StepEmu;
 
     fn run_test(test_case: &[u8], mem_size: usize, x0: u64) -> System<Arm> {
-        let mut vm = System::new(Arm::v8(), mem_size);
+        let mut vm = System::new(Arm::new(Armv9p4a), mem_size);
         vm.write_mem(0, test_case).unwrap();
 
         let proc = vm.proc_mut();

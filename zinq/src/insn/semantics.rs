@@ -39,6 +39,10 @@ pub enum Expr<'p> {
         val: Term,
         size: usize,
     },
+    Bit {
+        val: Term,
+        idx: usize,
+    },
     Slice {
         val: Term,
         start: usize,
@@ -61,6 +65,7 @@ pub enum UnaOp {
     IsPos,
     IsNeg,
     IsZero,
+    IsNonZero,
 }
 
 #[derive(Debug)]
@@ -87,12 +92,13 @@ impl<'p> Expr<'p> {
             Expr::Term(t) => t.eval(exec_ctx).and_then(|t| Some(t.to_bitvec())),
             Expr::Unary(op, val) => match op {
                 UnaOp::Not => val.eval(exec_ctx).and_then(|val| Some(!val.to_bitvec())),
-                UnaOp::IsZero | UnaOp::IsPos | UnaOp::IsNeg => val
+                UnaOp::IsPos | UnaOp::IsNeg | UnaOp::IsZero | UnaOp::IsNonZero => val
                     .eval(exec_ctx)
                     .and_then(|val| match op {
                         UnaOp::IsPos => Some(!val.last()?),
                         UnaOp::IsNeg => Some(*val.last()?),
                         UnaOp::IsZero => Some(!val.any()),
+                        UnaOp::IsNonZero => Some(val.any()),
                         _ => panic!("Unreachable"),
                     })
                     .and_then(|result| {
@@ -162,10 +168,10 @@ impl<'p> Expr<'p> {
                     }
                 }
             }
-            Expr::Slice { val, start, len } => val
-                .eval(exec_ctx)
-                .and_then(|val| val.get(*start..*start + *len))
-                .and_then(|slice| Some(slice.to_bitvec())),
+            Expr::Bit { val, idx } => Some(val.eval(exec_ctx)?.get(*idx..*idx + 1)?.to_bitvec()),
+            Expr::Slice { val, start, len } => {
+                Some(val.eval(exec_ctx)?.get(*start..*start + *len)?.to_bitvec())
+            }
             Expr::Merge {
                 lhs,
                 start_lhs,
@@ -196,8 +202,8 @@ impl<'p> Expr<'p> {
                     .collect();
                 Some(merged)
             }
+            Expr::Zext { .. } => panic!("Unsupported expression!"),
             Expr::ReadProc(var) => Some((*var).to_bitvec()),
-            _ => None,
         }
     }
 }

@@ -22,7 +22,7 @@ pub trait Instruction<P: Processor>: Decodable<Self::InsnSize> + Sized {
     fn assemble(&self) -> &Self::InsnSize;
 
     /// Return a string representation of the instruction
-    fn disassemble(&self) -> String;
+    fn disassemble(&self, proc: &P) -> String;
 
     /// Return the size of an instruction in bytes
     fn size(&self) -> usize;

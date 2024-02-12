@@ -2,8 +2,10 @@ use bitvec::prelude::*;
 
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
-use crate::insns::a64::add_with_carry;
-use crate::{insns::a64, Arm};
+use crate::{
+    insns::{a64, helpers::*},
+    Arm,
+};
 
 #[derive(Clone, Debug)]
 pub struct ArithImm {
@@ -75,9 +77,9 @@ impl Instruction<Arm> for ArithImm {
         &self.raw
     }
 
-    fn disassemble(&self) -> String {
-        let rd = a64::reg_symbol(self.sf, self.rd);
-        let rn = a64::reg_symbol(self.sf, self.rn);
+    fn disassemble(&self, _proc: &Arm) -> String {
+        let rd = reg_symbol(self.sf, self.rd);
+        let rn = reg_symbol(self.sf, self.rn);
         let shift = if self.sh {
             String::from(", LSL #12")
         } else {
@@ -117,8 +119,6 @@ impl Instruction<Arm> for ArithImm {
     }
 
     fn semantics<'p>(&self, proc: &'p Arm) -> IrBlock<'p> {
-        let mut code = IrBlock::new();
-
         // Decode
         let datasize = if self.sf { 64 } else { 32 };
         let imm = {
@@ -133,20 +133,17 @@ impl Instruction<Arm> for ArithImm {
             imm
         };
 
+        let mut code: IrBlock<'_> = IrBlock::new();
+
         // let operand1 : bits('datasize) = if n == 31 then
         //   SP_read()[datasize - 1 .. 0]
         // else
         //   X_read(n, datasize);
         let operand1 = if self.rn == 31 {
-            code.assign(Expr::ReadProc(&proc.sp()))
+            sp_read(datasize, proc, &mut code)
         } else {
-            code.assign(Expr::ReadProc(&proc.r[self.rn]))
+            x_read(self.rn, datasize, proc, &mut code)
         };
-        let operand1 = code.assign(Expr::Slice {
-            val: Term::Var(operand1),
-            start: 0,
-            len: datasize,
-        });
 
         // operand2 : bits('datasize) = imm;
         // nzcv : bits(4) = undefined;
@@ -189,13 +186,13 @@ impl Instruction<Arm> for ArithImm {
                 val: Term::Var(result),
                 size: 64,
             });
-            code.write_proc(&proc.sp(), 0, Term::Var(zext_result));
+            sp_set(Term::Var(zext_result), proc, &mut code);
         } else {
-            a64::x_set(proc, self.rd, Term::Var(result), &mut code);
+            x_set(self.rd, Term::Var(result), proc, &mut code);
         }
 
         // Increment PC
-        a64::next_insn(proc, &mut code);
+        inc_pc(proc, &mut code);
 
         code
     }
@@ -204,6 +201,7 @@ impl Instruction<Arm> for ArithImm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Version::Armv9p4a;
     use zinq::{
         system::{Processor, System},
         Emulator,
@@ -211,7 +209,7 @@ mod tests {
     use zinq_std_emu::StepEmu;
 
     fn run_test(test_case: &[u8], mem_size: usize, x0: u64) -> System<Arm> {
-        let mut vm = System::new(Arm::v8(), mem_size);
+        let mut vm = System::new(Arm::new(Armv9p4a), mem_size);
         vm.write_mem(0, test_case).unwrap();
 
         let proc = vm.proc_mut();

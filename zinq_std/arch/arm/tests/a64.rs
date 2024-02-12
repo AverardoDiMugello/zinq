@@ -4,7 +4,7 @@ use zinq::{
 };
 
 use zinq_std_arm as znstd_arm;
-use znstd_arm::Arm;
+use znstd_arm::{Arm, Version::Armv9p4a};
 
 use zinq_std_emu as znstd_emu;
 use znstd_emu::StepEmu;
@@ -19,7 +19,7 @@ fn uncond_branch() {
         0x00, 0x04, 0x00, 0x91, // 16:  ADD X0, X0, #1
     ];
 
-    let mut vm = System::new(Arm::v8(), 48);
+    let mut vm = System::new(Arm::new(Armv9p4a), 48);
     vm.write_mem(0, &test_case).unwrap();
     vm.proc_mut().set_ip(0);
 
@@ -43,7 +43,7 @@ fn cond_branch() {
         0x64, 0x00, 0x80, 0xD2, // 20:  MOV X4, #3
     ];
 
-    let mut vm = System::new(Arm::v8(), 48);
+    let mut vm = System::new(Arm::new(Armv9p4a), 48);
     vm.write_mem(0, &test_case).unwrap();
     vm.proc_mut().set_ip(0);
 
@@ -76,7 +76,7 @@ fn cond_branch_32() {
         0x64, 0x00, 0x80, 0x52, // MOV W4, #3
     ];
 
-    let mut vm = System::new(Arm::v8(), 48);
+    let mut vm = System::new(Arm::new(Armv9p4a), 48);
     vm.write_mem(0, &test_case).unwrap();
     vm.proc_mut().set_ip(0);
     vm.proc_mut().set_x(0, ((1 << 32) - 1) << 31).unwrap();

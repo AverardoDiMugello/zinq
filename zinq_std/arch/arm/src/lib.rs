@@ -4,15 +4,12 @@ use zinq::{insn::Instruction, system::Processor, Error, Result};
 
 pub mod insns;
 use insns::ArmInstruction;
+mod variants;
+pub use variants::Version;
 
 type Flag = BitArr!(for 1);
 type El = BitArr!(for 2);
 type Reg64 = BitArr!(for 64);
-
-#[derive(Debug)]
-enum Version {
-    Armv8a,
-}
 
 #[derive(Debug)]
 enum Endian {
@@ -33,15 +30,27 @@ pub struct Arm {
 }
 
 impl Arm {
-    /// Initialize an Armv8a architecture
-    pub fn v8() -> Self {
+    /// Initialize an Arm CPU of the given version
+    pub fn new(v: Version) -> Self {
         Self {
             r: [Reg64::ZERO; 31],
             sp: [Reg64::ZERO; 4],
             pc: Reg64::ZERO,
             pstate: Pstate::new(),
-            version: Version::Armv8a,
+            version: v,
             endian: Endian::Little,
+        }
+    }
+
+    /// Initialize a big endian Arm CPU of the given version
+    pub fn new_be(v: Version) -> Self {
+        Self {
+            r: [Reg64::ZERO; 31],
+            sp: [Reg64::ZERO; 4],
+            pc: Reg64::ZERO,
+            pstate: Pstate::new(),
+            version: v,
+            endian: Endian::Big,
         }
     }
 
@@ -116,10 +125,8 @@ impl Arm {
 impl Processor for Arm {
     type Insn = ArmInstruction;
 
-    fn name(&self) -> &str {
-        match self.version {
-            Version::Armv8a => stringify!(Armv8a),
-        }
+    fn name(&self) -> String {
+        format!("{}", self.version)
     }
 
     fn ip(&self) -> usize {

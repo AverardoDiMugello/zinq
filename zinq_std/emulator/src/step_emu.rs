@@ -41,7 +41,7 @@ impl<P: Processor> Emulator<System<P>> for StepEmu {
             if let Ok(insn) = system.proc().fetch_decode(system.proc().ip(), system.mem()) {
                 icount += 1;
 
-                println!("{0}", insn.disassemble());
+                println!("{0}", insn.disassemble(system.proc()));
                 println!("{0:?}", insn);
                 let code = insn.semantics(system.proc());
 
@@ -104,7 +104,6 @@ impl<P: Processor> Emulator<System<P>> for StepEmu {
                             // mutable.
                             break;
                         }
-                        _ => panic!("Statement not supported!"),
                     };
                 }
             } else {

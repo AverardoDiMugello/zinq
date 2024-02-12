@@ -52,7 +52,11 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         .line("match self {");
 
     let mut disas_fn = Function::new("disassemble");
-    disas_fn.arg_ref_self().ret("String").line("match self {");
+    disas_fn
+        .arg_ref_self()
+        .arg("proc", format!("&{isa_name}"))
+        .ret("String")
+        .line("match self {");
 
     let mut size_fn = Function::new("size");
     size_fn.arg_ref_self().ret("usize").line("match self {");
@@ -89,7 +93,7 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         name_fn.line(format!("{enum_name}::{variant_name}(i) => i.name(),"));
         asm_fn.line(format!("{enum_name}::{variant_name}(i) => i.assemble(),"));
         disas_fn.line(format!(
-            "{enum_name}::{variant_name}(i) => i.disassemble(),"
+            "{enum_name}::{variant_name}(i) => i.disassemble(proc),"
         ));
         size_fn.line(format!("{enum_name}::{variant_name}(i) => i.size(),"));
         sem_fn.line(format!(

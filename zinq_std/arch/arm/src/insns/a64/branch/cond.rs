@@ -1,15 +1,20 @@
+use std::isize;
+
 use bitvec::prelude::*;
 
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
-use crate::{insns::a64, Arm};
+use crate::{
+    insns::{a64, helpers::*},
+    Arm,
+};
 
 #[derive(Debug, Clone)]
 pub struct Cond {
     raw: u32,
     imm19: BitArr!(for 19),
     consistent: bool,
-    cond: a64::CondCode,
+    cond: CondCode,
 }
 
 impl Decodable<a64::InsnSize> for Cond {
@@ -28,16 +33,15 @@ impl Instruction<Arm> for Cond {
             raw: bits.get(0..32)?.load(),
             imm19,
             consistent: *bits.get(4)?,
-            cond: a64::CondCode::from(bits.get(0..4)?.load::<u8>()),
+            cond: CondCode::from(bits.get(0..4)?.load::<u8>()),
         })
     }
 
     fn name(&self) -> String {
-        let cond = a64::cond_symbol(self.cond);
         if self.consistent {
-            format!("BC.{cond}")
+            format!("BC.{0}", self.cond)
         } else {
-            format!("B.{cond}")
+            format!("B.{0}", self.cond)
         }
     }
 
@@ -45,15 +49,10 @@ impl Instruction<Arm> for Cond {
         &self.raw
     }
 
-    fn disassemble(&self) -> String {
-        let cond = a64::cond_symbol(self.cond);
-        let imm = self.imm19.load::<isize>() << 2;
-
-        if self.consistent {
-            format!("BC.{cond} #{imm:X}")
-        } else {
-            format!("B.{cond} #{imm:X}")
-        }
+    fn disassemble(&self, proc: &Arm) -> String {
+        let name = self.name();
+        let label = proc.pc.load::<isize>() + (self.imm19.load::<isize>() << 2);
+        format!("{name} #{label:X}")
     }
 
     fn size(&self) -> usize {
@@ -71,21 +70,9 @@ impl Instruction<Arm> for Cond {
         // if ConditionHolds(cond) then
         //      BranchTo(PC[] + offset, BranchType_DIR, TRUE);
 
-        let cond_holds = a64::condition_holds(self.cond, proc, &mut code);
+        let cond_holds = condition_holds(self.cond, proc, &mut code);
 
-        let pc = code.assign(Expr::ReadProc(&proc.pc));
-        let true_case = code.assign(Expr::Binary(
-            BinOp::Add,
-            Term::Var(pc),
-            Term::Lit(offset),
-            true,
-        ));
-        let false_case = code.assign(Expr::Binary(
-            BinOp::Add,
-            Term::Var(pc),
-            Term::Lit(BitVec::from_element(4)),
-            false,
-        ));
+        let (true_case, false_case) = pc_offset_and_next(Term::Lit(offset), proc, &mut code);
 
         code.if_else(
             Term::Var(cond_holds),
@@ -98,8 +85,9 @@ impl Instruction<Arm> for Cond {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
+    use crate::Version::Armv9p4a;
     use zinq::{
         system::{Processor, System},
         Emulator,
@@ -107,7 +95,7 @@ mod test {
     use zinq_std_emu::StepEmu;
 
     fn run_test(test_case: &[u8], start_addr: usize, x0: u64) -> System<Arm> {
-        let mut vm = System::new(Arm::v8(), 64);
+        let mut vm = System::new(Arm::new(Armv9p4a), 64);
         // CMP X0, #1
         vm.write_mem(start_addr, &[0x1F, 0x04, 0x00, 0xF1]).unwrap();
         vm.write_mem(start_addr + 4, &test_case).unwrap();
