@@ -3,7 +3,7 @@ use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{
-    insns::{a64, helpers::*},
+    insns::{a64, disas, helpers::*},
     Arm,
 };
 
@@ -55,82 +55,12 @@ impl Instruction<Arm> for ArithShift {
         Some(insn)
     }
 
-    fn name(&self) -> String {
-        // Subtract?
-        if self.op {
-            // Setflags?
-            if self.s {
-                if self.rn == 0b11111 && self.rd != 0b11111 {
-                    String::from("NEGS")
-                } else if self.rd == 0b11111 {
-                    String::from("CMP (shifted register)")
-                } else {
-                    String::from("SUBS (shifted register)")
-                }
-            } else {
-                if self.rn == 0b11111 {
-                    String::from("NEG (shifted register)")
-                } else {
-                    String::from("SUB (shifted register)")
-                }
-            }
-        } else {
-            if self.s {
-                if self.rd == 0b11111 {
-                    String::from("CMN (shifted register)")
-                } else {
-                    String::from("ADDS (shifted register)")
-                }
-            } else {
-                String::from("ADD (shifted register)")
-            }
-        }
-    }
-
     fn assemble(&self) -> &a64::InsnSize {
         &self.raw
     }
 
-    fn disassemble(&self, _proc: &Arm) -> String {
-        let rd = reg_symbol(self.sf, self.rd);
-        let rm = reg_symbol(self.sf, self.rm);
-        let rn = reg_symbol(self.sf, self.rn);
-        let imm = self.imm6.load::<usize>();
-        let shift = if imm > 0 {
-            format!(", {0} #{imm}", self.shift)
-        } else {
-            String::new()
-        };
-
-        // Subtract?
-        if self.op {
-            // Setflags?
-            if self.s {
-                if self.rn == 0b11111 && self.rd != 0b11111 {
-                    format!("NEGS")
-                } else if self.rd == 0b11111 {
-                    format!("CMP {rd}, {rn}, {rm}{shift}")
-                } else {
-                    format!("SUBS {rd}, {rn}, {rm}{shift}")
-                }
-            } else {
-                if self.rn == 0b11111 {
-                    format!("NEG {rd}, {rn}, {rm}{shift}")
-                } else {
-                    format!("SUB {rd}, {rn}, {rm}{shift}")
-                }
-            }
-        } else {
-            if self.s {
-                if self.rd == 0b11111 {
-                    format!("CMN {rd}, {rn}, {rm}{shift}")
-                } else {
-                    format!("ADDS {rd}, {rn}, {rm}{shift}")
-                }
-            } else {
-                format!("ADD {rd}, {rn}, {rm}{shift}")
-            }
-        }
+    fn disassemble(&self, proc: &Arm) -> String {
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

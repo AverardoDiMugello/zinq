@@ -1,8 +1,10 @@
 use crate::Arm;
 use zinq_macros::insn_set;
 
+mod disas;
 mod helpers {
     mod common;
+
     pub use common::*;
     mod integer;
     pub use integer::*;

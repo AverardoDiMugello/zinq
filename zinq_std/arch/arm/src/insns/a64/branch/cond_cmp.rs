@@ -3,7 +3,7 @@ use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{
-    insns::{a64, helpers::*},
+    insns::{a64, disas, helpers::*},
     Arm,
 };
 
@@ -37,23 +37,12 @@ impl Instruction<Arm> for CondCmp {
         })
     }
 
-    fn name(&self) -> String {
-        if self.op {
-            String::from("CBNZ")
-        } else {
-            String::from("CBZ")
-        }
-    }
-
     fn assemble(&self) -> &Self::InsnSize {
         &self.raw
     }
 
     fn disassemble(&self, proc: &Arm) -> String {
-        let name = self.name();
-        let rt = reg_symbol(self.sf, self.rt);
-        let label = proc.pc.load::<isize>() + (self.imm19.load::<isize>() << 2);
-        format!("{name} {rt}, {label}")
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

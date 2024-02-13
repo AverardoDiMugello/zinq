@@ -2,7 +2,7 @@ use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{
-    insns::{a64, helpers::*},
+    insns::{a64, disas, helpers::*},
     Arm,
 };
 
@@ -72,29 +72,12 @@ impl Instruction<Arm> for MovImm {
         Some(insn)
     }
 
-    fn name(&self) -> String {
-        match self.opc {
-            MovOp::K => String::from("MOVK"),
-            MovOp::N => String::from("MOVN"),
-            MovOp::Z => String::from("MOVZ"),
-        }
-    }
-
     fn assemble(&self) -> &u32 {
         &self.raw
     }
 
-    fn disassemble(&self, _proc: &Arm) -> String {
-        let name = self.name();
-        let rd = reg_symbol(self.sf, self.rd);
-        let imm = self.imm16.load::<u32>();
-        let pos = (((self.hw_1 as usize) << 1) | (self.hw_0 as usize)) << 4;
-        let shift = if pos > 0 {
-            format!(", LSL #{pos}")
-        } else {
-            String::new()
-        };
-        format!("{name} {rd}, #{imm}{shift}")
+    fn disassemble(&self, proc: &Arm) -> String {
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

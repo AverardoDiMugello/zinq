@@ -15,9 +15,6 @@ pub trait Instruction<P: Processor>: Decodable<Self::InsnSize> + Sized {
     /// Attempt to decode this instruction from a reference to a collection of bits
     fn decode(bits: &BitSlice) -> Option<Self>;
 
-    /// Return a name for the instruction
-    fn name(&self) -> String;
-
     /// Return the instruction as binary data
     fn assemble(&self) -> &Self::InsnSize;
 

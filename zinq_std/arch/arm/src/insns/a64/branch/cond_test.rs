@@ -3,7 +3,7 @@ use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{
-    insns::{a64, helpers::*},
+    insns::{a64, disas, helpers::*},
     Arm,
 };
 
@@ -39,28 +39,12 @@ impl Instruction<Arm> for CondTest {
         })
     }
 
-    fn name(&self) -> String {
-        if self.b5 {
-            String::from("TBNZ")
-        } else {
-            String::from("TBZ")
-        }
-    }
-
     fn assemble(&self) -> &Self::InsnSize {
         &self.raw
     }
 
     fn disassemble(&self, proc: &Arm) -> String {
-        let name = self.name();
-        let rt = if self.rt == 31 {
-            String::from("ZR")
-        } else {
-            reg_symbol(self.b5, self.rt)
-        };
-        let bit_pos = (self.b5 as u8) << 5 | self.b40;
-        let label = proc.pc.load::<isize>() + (self.imm14.load::<isize>() << 2);
-        format!("{name} {rt}, #{bit_pos} {label}")
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

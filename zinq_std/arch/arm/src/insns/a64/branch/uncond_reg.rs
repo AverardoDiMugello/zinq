@@ -2,7 +2,10 @@ use bitvec::prelude::*;
 
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
-use crate::{insns::a64, Arm};
+use crate::{
+    insns::{a64, disas},
+    Arm,
+};
 
 #[derive(Debug, Clone)]
 pub struct UncondReg {
@@ -28,16 +31,12 @@ impl Instruction<Arm> for UncondReg {
         todo!("Insn not supported")
     }
 
-    fn name(&self) -> String {
-        todo!("Insn not supported")
-    }
-
     fn assemble(&self) -> &Self::InsnSize {
         &self.raw
     }
 
     fn disassemble(&self, proc: &Arm) -> String {
-        todo!("Insn not supported")
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

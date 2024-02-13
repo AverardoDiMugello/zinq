@@ -5,7 +5,7 @@ use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{
-    insns::{a64, helpers::*},
+    insns::{a64, disas, helpers::*},
     Arm,
 };
 
@@ -37,22 +37,12 @@ impl Instruction<Arm> for Cond {
         })
     }
 
-    fn name(&self) -> String {
-        if self.consistent {
-            format!("BC.{0}", self.cond)
-        } else {
-            format!("B.{0}", self.cond)
-        }
-    }
-
     fn assemble(&self) -> &Self::InsnSize {
         &self.raw
     }
 
     fn disassemble(&self, proc: &Arm) -> String {
-        let name = self.name();
-        let label = proc.pc.load::<isize>() + (self.imm19.load::<isize>() << 2);
-        format!("{name} #{label:X}")
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

@@ -1,5 +1,5 @@
 use bitvec::prelude::*;
-
+use capstone::Endian;
 use zinq::{insn::Instruction, system::Processor, Error, Result};
 
 pub mod insns;
@@ -10,12 +10,6 @@ pub use variants::Version;
 type Flag = BitArr!(for 1);
 type El = BitArr!(for 2);
 type Reg64 = BitArr!(for 64);
-
-#[derive(Debug)]
-enum Endian {
-    Big,
-    Little,
-}
 
 #[derive(Debug)]
 pub struct Arm {

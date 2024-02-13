@@ -2,7 +2,10 @@ use bitvec::prelude::*;
 
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
-use crate::{insns::a64, Arm};
+use crate::{
+    insns::{a64, disas},
+    Arm,
+};
 
 #[derive(Debug, Clone)]
 pub struct UncondImm {
@@ -30,25 +33,12 @@ impl Instruction<Arm> for UncondImm {
         })
     }
 
-    fn name(&self) -> String {
-        if self.op {
-            String::from("BL")
-        } else {
-            String::from("B")
-        }
-    }
-
     fn assemble(&self) -> &Self::InsnSize {
         &self.raw
     }
 
     fn disassemble(&self, proc: &Arm) -> String {
-        let label = proc.pc.load::<isize>() + (self.imm26.load::<isize>() << 2);
-        if self.op {
-            format!("BL #{label:X}")
-        } else {
-            format!("B #{label:X}")
-        }
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {

@@ -42,9 +42,6 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         .line("let raw_32 = bitvec::field::BitField::load::<Self::InsnSize>(bits.get(0..32).unwrap());");
     // TODO: this is fake!
 
-    let mut name_fn = Function::new("name");
-    name_fn.arg_ref_self().ret("String").line("match self {");
-
     let mut asm_fn = Function::new("assemble");
     asm_fn
         .arg_ref_self()
@@ -90,7 +87,6 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         decode_fn.line(format!("return <{path_w_sep} as zinq::insn::Instruction<{isa_name}>>::decode(bits).and_then(|insn| Some({enum_name}::{variant_name}(insn)));"));
         decode_fn.line(format!("}}"));
 
-        name_fn.line(format!("{enum_name}::{variant_name}(i) => i.name(),"));
         asm_fn.line(format!("{enum_name}::{variant_name}(i) => i.assemble(),"));
         disas_fn.line(format!(
             "{enum_name}::{variant_name}(i) => i.disassemble(proc),"
@@ -103,8 +99,6 @@ pub fn codegen(input: TokenStream) -> TokenStream {
 
     decode_fn.line("return None;");
     isa_impl.push_fn(decode_fn);
-    name_fn.line("}");
-    isa_impl.push_fn(name_fn);
     asm_fn.line("}");
     isa_impl.push_fn(asm_fn);
     disas_fn.line("}");

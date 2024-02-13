@@ -3,7 +3,7 @@ use bitvec::prelude::*;
 use zinq::insn::{semantics::*, syntax::Decodable, Instruction};
 
 use crate::{
-    insns::{a64, helpers::*},
+    insns::{a64, disas, helpers::*},
     Arm,
 };
 
@@ -38,65 +38,12 @@ impl Instruction<Arm> for ArithCarry {
         })
     }
 
-    fn name(&self) -> String {
-        // Subtract?
-        if self.op {
-            // Setflags?
-            if self.s {
-                if self.rn == 0b11111 {
-                    String::from("NGCS")
-                } else {
-                    String::from("SBCS")
-                }
-            } else {
-                if self.rn == 0b11111 {
-                    String::from("NGC")
-                } else {
-                    String::from("SBC")
-                }
-            }
-        } else {
-            if self.s {
-                String::from("ADCS")
-            } else {
-                String::from("ADC)")
-            }
-        }
-    }
-
     fn assemble(&self) -> &a64::InsnSize {
         &self.raw
     }
 
-    fn disassemble(&self, _proc: &Arm) -> String {
-        let rd = reg_symbol(self.sf, self.rd);
-        let rm = reg_symbol(self.sf, self.rm);
-        let rn = reg_symbol(self.sf, self.rn);
-
-        // Subtract?
-        if self.op {
-            // Set flags?
-            if self.s {
-                // CMP special case
-                if self.rn == 0b11111 {
-                    format!("NGCS {rd}, {rm}")
-                } else {
-                    format!("SBCS {rd}, {rn}, {rm}")
-                }
-            } else {
-                if self.rn == 0b11111 {
-                    format!("NGC {rd}, {rm}")
-                } else {
-                    format!("SBC {rd}, {rn}, {rm}")
-                }
-            }
-        } else {
-            if self.s {
-                format!("ADCS {rd}, {rn}, {rm}")
-            } else {
-                format!("ADC {rd}, {rn}, {rm}")
-            }
-        }
+    fn disassemble(&self, proc: &Arm) -> String {
+        disas::a64(self.raw, proc)
     }
 
     fn size(&self) -> usize {
