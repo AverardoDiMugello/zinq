@@ -10,13 +10,17 @@ pub mod branch {
     pub use cond::Cond;
     mod uncond_imm;
     pub use uncond_imm::UncondImm;
-    // mod uncond_reg;
-    // pub use uncond_reg::UncondReg;
+    mod uncond_reg;
+    pub use uncond_reg::UncondReg;
 }
 
 pub mod data {
+    mod arith_carry;
+    pub use arith_carry::ArithCarry;
     mod arith_imm;
     pub use arith_imm::ArithImm;
+    mod arith_shift;
+    pub use arith_shift::ArithShift;
     mod mov_imm;
     pub use mov_imm::MovImm;
 }

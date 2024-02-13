@@ -8,7 +8,7 @@ pub type Var = usize;
 
 /// Terminals are either a BitVec literal or a variable. All Expressions evalutate to
 /// terminals
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Term {
     Lit(BitVec),
     Var(Var),
@@ -34,7 +34,23 @@ pub enum Expr<'p> {
     Term(Term),
     Unary(UnaOp, Term),
     Binary(BinOp, Term, Term, bool),
-    // Vector
+    // Bit vector
+    Lsl {
+        val: Term,
+        amt: usize,
+    },
+    Lsr {
+        val: Term,
+        amt: usize,
+    },
+    Asr {
+        val: Term,
+        amt: usize,
+    },
+    Ror {
+        val: Term,
+        amt: usize,
+    },
     Zext {
         val: Term,
         size: usize,
@@ -202,7 +218,35 @@ impl<'p> Expr<'p> {
                     .collect();
                 Some(merged)
             }
-            Expr::Zext { .. } => panic!("Unsupported expression!"),
+            Expr::Lsl { val, amt } => {
+                let mut val = val.eval(exec_ctx)?.to_bitvec();
+                for i in 0..*amt {
+                    val.insert(0, false);
+                }
+                Some(val)
+            }
+            Expr::Lsr { val, amt } => {
+                let mut val = val.eval(exec_ctx)?.to_bitvec();
+                for i in 0..*amt {
+                    val.remove(0);
+                    val.push(false);
+                }
+                Some(val)
+            }
+            Expr::Asr { val, amt } => {
+                let mut val = val.eval(exec_ctx)?.to_bitvec();
+                for i in 0..*amt {
+                    val.remove(0);
+                    val.push(true);
+                }
+                Some(val)
+            }
+            Expr::Ror { val, amt } => panic!("Expression not supported"),
+            Expr::Zext { val, size } => {
+                let mut val = val.eval(exec_ctx)?.to_bitvec();
+                val.resize(*size, false);
+                Some(val)
+            }
             Expr::ReadProc(var) => Some((*var).to_bitvec()),
         }
     }

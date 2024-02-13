@@ -156,15 +156,20 @@ impl Instruction<Arm> for ArithImm {
         // };
         let (operand2, carry_in) = if self.op {
             let operand2 = code.assign(Expr::Unary(UnaOp::Not, Term::Lit(imm)));
-            (operand2, true)
+            (operand2, bitvec!(1))
         } else {
             let operand2 = code.assign(Expr::Term(Term::Lit(imm)));
-            (operand2, false)
+            (operand2, bitvec!(0))
         };
 
         // (result, nzcv) = AddWithCarry(operand1, operand2, carry_in);
-        let (result, (n, z, c, v)) =
-            add_with_carry(operand1, operand2, carry_in, datasize, &mut code);
+        let (result, (n, z, c, v)) = add_with_carry(
+            Term::Var(operand1),
+            Term::Var(operand2),
+            Term::Lit(carry_in),
+            datasize,
+            &mut code,
+        );
 
         // if setflags then {
         //     (PSTATE.N @ PSTATE.Z @ PSTATE.C @ PSTATE.V) = nzcv
@@ -208,8 +213,8 @@ mod tests {
     };
     use zinq_std_emu::StepEmu;
 
-    fn run_test(test_case: &[u8], mem_size: usize, x0: u64) -> System<Arm> {
-        let mut vm = System::new(Arm::new(Armv9p4a), mem_size);
+    fn run_test(test_case: &[u8], x0: u64) -> System<Arm> {
+        let mut vm = System::new(Arm::new(Armv9p4a), 8);
         vm.write_mem(0, test_case).unwrap();
 
         let proc = vm.proc_mut();
@@ -226,7 +231,7 @@ mod tests {
     fn add_64() {
         // ADD X1, X0, #1
         let test_case = [0x01, 0x04, 0x00, 0x91];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 + 1));
     }
 
@@ -234,7 +239,7 @@ mod tests {
     fn add_32() {
         // ADD W1, W0, #1
         let test_case = [0x01, 0x04, 0x00, 0x11];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(1));
     }
 
@@ -242,7 +247,7 @@ mod tests {
     fn add_sh_64() {
         // ADD X1, X0, #1, LSL #12
         let test_case = [0x01, 0x04, 0x40, 0x91];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 + (1 << 12)));
     }
 
@@ -250,7 +255,7 @@ mod tests {
     fn add_sh_32() {
         // ADD W1, W0, #1, LSL #12
         let test_case = [0x01, 0x04, 0x40, 0x11];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(1 << 12));
     }
 
@@ -258,7 +263,7 @@ mod tests {
     fn sub_64() {
         // SUB X1, X0, #1
         let test_case = [0x01, 0x04, 0x00, 0xD1];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 - 1));
     }
 
@@ -266,7 +271,7 @@ mod tests {
     fn sub_32() {
         // SUB W1, W0, #1
         let test_case = [0x01, 0x04, 0x00, 0x51];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(0x00000000ffffffff));
     }
 
@@ -274,7 +279,7 @@ mod tests {
     fn sub_sh_64() {
         // SUB X1, X0, #1, LSL #12
         let test_case = [0x01, 0x04, 0x40, 0xD1];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(0xaaaaaaaa00000000 - (1 << 12)));
     }
 
@@ -282,7 +287,7 @@ mod tests {
     fn sub_sh_32() {
         // SUB W1, W0, #1, LSL #12
         let test_case = [0x01, 0x04, 0x40, 0x51];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().x(1), Some(0x00000000fffff000));
     }
 
@@ -290,7 +295,7 @@ mod tests {
     fn flag_negative_64() {
         // ADDS X1, X0, #1
         let test_case = [0x01, 0x04, 0x00, 0xB1];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().n(), true);
     }
 
@@ -298,7 +303,7 @@ mod tests {
     fn flag_negative_32() {
         // ADDS W1, W0, #-1
         let test_case = [0x01, 0x04, 0x00, 0x71];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().n(), true);
     }
 
@@ -306,7 +311,7 @@ mod tests {
     fn flag_zero_64() {
         // SUBS X1, X0, #1
         let test_case = [0x01, 0x04, 0x00, 0xF1];
-        let vm = run_test(&test_case, 8, 1);
+        let vm = run_test(&test_case, 1);
         assert_eq!(vm.proc().z(), true);
     }
 
@@ -314,7 +319,7 @@ mod tests {
     fn flag_zero_32() {
         // SUBS W1, W0, #0
         let test_case = [0x01, 0x00, 0x00, 0x71];
-        let vm = run_test(&test_case, 8, 0xaaaaaaaa00000000);
+        let vm = run_test(&test_case, 0xaaaaaaaa00000000);
         assert_eq!(vm.proc().z(), true);
     }
 
@@ -322,7 +327,7 @@ mod tests {
     fn flag_carry_64() {
         // ADDS X1, X0, #1, LSL #12
         let test_case = [0x01, 0x04, 0x40, 0xB1];
-        let vm = run_test(&test_case, 8, 0xfffffffffffff000);
+        let vm = run_test(&test_case, 0xfffffffffffff000);
         assert_eq!(vm.proc().c(), true);
     }
 
@@ -330,7 +335,7 @@ mod tests {
     fn flag_carry_32() {
         // ADDS W1, W0, #1, LSL #12
         let test_case = [0x01, 0x04, 0x40, 0x31];
-        let vm = run_test(&test_case, 8, 0x00000000fffff000);
+        let vm = run_test(&test_case, 0x00000000fffff000);
         assert_eq!(vm.proc().c(), true);
     }
 
@@ -338,7 +343,7 @@ mod tests {
     fn flag_overflow_64() {
         // ADDS X1, X0, #1
         let test_case = [0x01, 0x04, 0x00, 0xB1];
-        let vm = run_test(&test_case, 8, 0x7fffffffffffffff);
+        let vm = run_test(&test_case, 0x7fffffffffffffff);
         assert_eq!(vm.proc().v(), true);
     }
 
@@ -346,7 +351,7 @@ mod tests {
     fn flag_overflow_32() {
         // ADDS W1, W0, #1
         let test_case = [0x01, 0x04, 0x00, 0x31];
-        let vm = run_test(&test_case, 8, 0x000000007fffffff);
+        let vm = run_test(&test_case, 0x000000007fffffff);
         assert_eq!(vm.proc().v(), true);
     }
 }
