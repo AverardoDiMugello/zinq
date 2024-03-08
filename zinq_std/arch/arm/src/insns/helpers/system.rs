@@ -1,82 +1,8 @@
-use std::fmt;
-
 use bitvec::prelude::*;
 use zinq::insn::semantics::*;
 
+use super::enums::*;
 use crate::Arm;
-
-/// Arm condition codes
-#[derive(Debug, Clone, Copy)]
-pub enum CondCode {
-    EQ,
-    NE,
-    CS,
-    CC,
-    MI,
-    PL,
-    VS,
-    VC,
-    HI,
-    LS,
-    GE,
-    LT,
-    GT,
-    LE,
-    AL,
-    NV,
-}
-
-impl From<u8> for CondCode {
-    fn from(value: u8) -> Self {
-        match value {
-            0b0000 => Self::EQ,
-            0b0001 => Self::NE,
-            0b0010 => Self::CS,
-            0b0011 => Self::CC,
-            0b0100 => Self::MI,
-            0b0101 => Self::PL,
-            0b0110 => Self::VS,
-            0b0111 => Self::VC,
-            0b1000 => Self::HI,
-            0b1001 => Self::LS,
-            0b1010 => Self::GE,
-            0b1011 => Self::LT,
-            0b1100 => Self::GT,
-            0b1101 => Self::LE,
-            0b1110 => Self::AL,
-            0b1111 => Self::NV,
-            _ => panic!(
-                "Invalid A64 condition code. Arm instructions should never allow this to happen."
-            ),
-        }
-    }
-}
-
-// Assembly helpers
-
-impl fmt::Display for CondCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CondCode::EQ => write!(f, "EQ"),
-            CondCode::NE => write!(f, "NE"),
-            CondCode::CS => write!(f, "CS"),
-            CondCode::CC => write!(f, "CC"),
-            CondCode::MI => write!(f, "MI"),
-            CondCode::PL => write!(f, "PL"),
-            CondCode::VS => write!(f, "VS"),
-            CondCode::VC => write!(f, "VC"),
-            CondCode::HI => write!(f, "HI"),
-            CondCode::LS => write!(f, "LS"),
-            CondCode::GE => write!(f, "GE"),
-            CondCode::LT => write!(f, "LT"),
-            CondCode::GT => write!(f, "GT"),
-            CondCode::LE => write!(f, "LE"),
-            CondCode::AL => write!(f, "AL"),
-            CondCode::NV => write!(f, "NV"),
-        }
-    }
-}
-
 // IR helpers
 
 /// Generate ConditionHolds

@@ -42,10 +42,20 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         .line("let raw_32 = bitvec::field::BitField::load::<Self::InsnSize>(bits.get(0..32).unwrap());");
     // TODO: this is fake!
 
+    /*
+     * Temp!
+     */
+    let mut fake_decode_fn = Function::new("fake_decode");
+    fake_decode_fn
+        .vis("pub")
+        .arg("bits", "&bitvec::prelude::BitSlice")
+        .ret("Option<String>")
+        .line("let raw_32 = bitvec::field::BitField::load::<u32>(bits.get(0..32).unwrap());");
+
     let mut asm_fn = Function::new("assemble");
     asm_fn
         .arg_ref_self()
-        .ret("&Self::InsnSize")
+        .ret("Self::InsnSize")
         .line("match self {");
 
     let mut disas_fn = Function::new("disassemble");
@@ -63,7 +73,7 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         .generic("\'p")
         .arg_ref_self()
         .arg("proc", format!("&'p {isa_name}"))
-        .ret("zinq::insn::semantics::IrBlock<'p>")
+        .arg("code", "&mut zinq::insn::semantics::IrBlock<'p>")
         .line("match self {");
 
     for path_to_insn in insns {
@@ -87,13 +97,22 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         decode_fn.line(format!("return <{path_w_sep} as zinq::insn::Instruction<{isa_name}>>::decode(bits).and_then(|insn| Some({enum_name}::{variant_name}(insn)));"));
         decode_fn.line(format!("}}"));
 
+        /*
+         * Temp!
+         */
+        fake_decode_fn.line(format!(
+            "if <{path_w_sep} as zinq::insn::syntax::Decodable<u32>>::FIXEDMASK & raw_32 == <{path_w_sep} as zinq::insn::syntax::Decodable<u32>>::FIXEDBITS {{"
+        ));
+        fake_decode_fn.line(format!("return Some(String::from(\"{variant_name}\"));"));
+        fake_decode_fn.line(format!("}}"));
+
         asm_fn.line(format!("{enum_name}::{variant_name}(i) => i.assemble(),"));
         disas_fn.line(format!(
             "{enum_name}::{variant_name}(i) => i.disassemble(proc),"
         ));
         size_fn.line(format!("{enum_name}::{variant_name}(i) => i.size(),"));
         sem_fn.line(format!(
-            "{enum_name}::{variant_name}(i) => i.semantics(&proc),"
+            "{enum_name}::{variant_name}(i) => i.semantics(proc, code),"
         ));
     }
 
@@ -107,6 +126,10 @@ pub fn codegen(input: TokenStream) -> TokenStream {
     isa_impl.push_fn(size_fn);
     sem_fn.line("}");
     isa_impl.push_fn(sem_fn);
+
+    /* Temp! */
+    fake_decode_fn.line("return None;");
+    scope.new_impl(&enum_name).push_fn(fake_decode_fn);
 
     scope.push_enum(isa_enum);
     scope.push_impl(isa_impl);
