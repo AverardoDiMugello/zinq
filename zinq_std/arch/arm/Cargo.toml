@@ -13,4 +13,4 @@ zinq_macros = { path = "../../../zinq_macros" }
 
 [dev-dependencies]
 zinq = { path = "../../../zinq" }
-zinq_std_emu = { path = "../../emulator" }
+zinq_std_emu = { path = "../../emu" }

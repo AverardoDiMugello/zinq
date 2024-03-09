@@ -2,8 +2,8 @@ use proc_macro::TokenStream;
 
 mod insn_set;
 mod ir;
-mod ir_block;
 mod ir_fn;
+mod ir_inline;
 
 #[proc_macro]
 pub fn insn_set(input: TokenStream) -> TokenStream {
@@ -13,4 +13,9 @@ pub fn insn_set(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn ir_fn(input: TokenStream) -> TokenStream {
     ir_fn::codegen(input)
+}
+
+#[proc_macro]
+pub fn ir(input: TokenStream) -> TokenStream {
+    ir_inline::codegen(input)
 }

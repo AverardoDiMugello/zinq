@@ -1,14 +1,11 @@
-use std::ops::Deref;
-
-use codegen::{Function, Scope};
+use codegen::Scope;
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
 use syn::{
-    braced, parenthesized, parse_macro_input, Block, FnArg, Ident, Result, ReturnType, Stmt, Token,
+    braced, parenthesized, parse_macro_input, FnArg, Ident, Result, ReturnType, Stmt, Token,
 };
 
 use crate::ir::*;
@@ -22,7 +19,7 @@ struct IrFn {
     hparams: Punctuated<IrType, Token![,]>,
     params: Punctuated<FnArg, Token![,]>,
     ret_type: ReturnType,
-    stmts: Vec<Stmt>,
+    block: IrBlock,
 }
 
 impl Parse for IrFn {
@@ -45,9 +42,7 @@ impl Parse for IrFn {
         let ret_type = input.parse()?;
 
         // { code... }
-        let content;
-        braced!(content in input);
-        let stmts = content.call(Block::parse_within)?;
+        let block = input.parse()?;
 
         Ok(IrFn {
             name,
@@ -55,7 +50,7 @@ impl Parse for IrFn {
             hparams,
             params,
             ret_type,
-            stmts,
+            block,
         })
     }
 }
@@ -67,7 +62,7 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         hparams,
         params,
         ret_type,
-        stmts,
+        block,
     } = parse_macro_input!(input);
 
     let mut scope = Scope::new();

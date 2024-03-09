@@ -1,21 +1,20 @@
-use num::Unsigned;
 use std::marker::PhantomData;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr, Sub};
 
 /// A 1-bit datum
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct I1(bool);
 
 /// A 32-bit datum
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct I32(u32);
 
 /// A 64-bit datum
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct I64(u64);
 
 /// A 128-bit datum
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct I128(u128);
 
 /// All statements and expressions operate on terminals, which are typed literal values or variables.
@@ -169,41 +168,44 @@ where
     Neq { lhs: Term<T>, rhs: Term<T> },
 }
 
-/// Expressions for converting values into 1-bit data
+/// Expressions for converting into 1-bit data
 #[derive(Debug)]
 pub enum ToI1 {
-    CmpI32(Cmp<u32>),
-    CmpI64(Cmp<u64>),
-    CmpI128(Cmp<u128>),
+    CmpI32(Cmp<I32>),
+    CmpI64(Cmp<I64>),
+    CmpI128(Cmp<I128>),
+    MsbI32(Term<I32>),
+    MsbI64(Term<I64>),
+    MsbI128(Term<I128>),
 }
 
 /// Expressions for converting into 32-bit data
 #[derive(Debug)]
 pub enum ToI32 {
-    FromI64(TruncConv<u64, u32>),
-    FromI128(TruncConv<u128, u32>),
+    FromI64(TruncConv<I64, I32>),
+    FromI128(TruncConv<I128, I32>),
 }
 
 /// Expressions for converting into 64-bit data
 #[derive(Debug)]
 pub enum ToI64 {
-    FromI32(ExtConv<u32, u64>),
-    FromI128(TruncConv<u128, u64>),
+    FromI32(ExtConv<I32, I64>),
+    FromI128(TruncConv<I128, I64>),
 }
 
 /// Expressions for converting into 128-bit data
 #[derive(Debug)]
 pub enum ToI128 {
-    FromI32(ExtConv<u32, u128>),
-    FromI64(ExtConv<u64, u128>),
+    FromI32(ExtConv<I32, I128>),
+    FromI64(ExtConv<I64, I128>),
 }
 
 /// Expressions that convert a terminals from one type to another by extension
 #[derive(Debug)]
 pub enum ExtConv<I, O>
 where
-    I: Unsigned + Copy,
-    O: Unsigned + Copy,
+    I: Copy, /*Unsigned +*/
+    O: Copy, /*Unsigned +*/
 {
     Sign(Term<I>, PhantomData<O>),
     Zero(Term<I>, PhantomData<O>),
@@ -213,8 +215,8 @@ where
 #[derive(Debug)]
 pub enum TruncConv<I, O>
 where
-    I: Unsigned + Copy,
-    O: Unsigned + Copy,
+    I: Copy, /*Unsigned +*/
+    O: Copy, /*Unsigned +*/
 {
     Sign(Term<I>, PhantomData<O>),
     Zero(Term<I>, PhantomData<O>),
