@@ -38,7 +38,7 @@ impl Instruction<Arm> for SystemHints {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("system_hints semantics")
     }
 }

@@ -24,7 +24,7 @@ pub use step_emu::StepEmu;
  * loop {
  *
  *      // Accumulate basic-block of instructions
- *      let block = IrBlock::new();
+ *      let block = IrCtx::new();
  *      loop {
  *          let insn = cpu.fetch_decode(cpu.ip(), mem);
  *          block.extend(insn.semantics(&cpu));

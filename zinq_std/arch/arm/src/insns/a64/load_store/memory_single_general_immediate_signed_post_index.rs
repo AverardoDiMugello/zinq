@@ -49,7 +49,7 @@ impl Instruction<Arm> for MemorySingleGeneralImmediateSignedPostIndex {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("memory_single_general_immediate_signed_post_idx semantics")
     }
 }

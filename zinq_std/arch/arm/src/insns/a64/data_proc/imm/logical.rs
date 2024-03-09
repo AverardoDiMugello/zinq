@@ -73,7 +73,7 @@ impl Instruction<Arm> for IntegerLogicalImmediate {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("****THIS HAS A FAKE DECODE!!!!******integer_logical_immediate semantics")
     }
 }

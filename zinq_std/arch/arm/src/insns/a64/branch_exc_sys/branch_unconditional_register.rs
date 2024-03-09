@@ -67,7 +67,7 @@ impl Instruction<Arm> for BranchUnconditionalRegister {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("***FAKE DECODE***branch_unconditional_register semantics")
     }
 }

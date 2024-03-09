@@ -1,5 +1,5 @@
 use bitvec::prelude::*;
-use zinq::insn::semantics::IrBlock;
+use zinq::insn::semantics::IrCtx;
 
 use crate::Arm;
 
@@ -40,6 +40,6 @@ impl<T: AsRef<BitSlice>> From<T> for ExtendType {
 //     shift: usize,
 //     datasize: usize,
 //     proc: &'p Arm,
-//     code: &mut IrBlock<'p>,
+//     code: &mut IrCtx<'p>,
 // ) -> Var {
 // }

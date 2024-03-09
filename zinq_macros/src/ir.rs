@@ -1,81 +1,50 @@
-use proc_macro::TokenStream;
 use syn::parse::{Parse, ParseStream};
-use syn::{parse_macro_input, Error, Ident, LitBool, LitInt, Result, Token};
+use syn::Result;
 
-enum TermBool {
-    Lit(LitBool),
-    Var(Ident),
+pub mod kw {
+    use syn::custom_keyword;
+
+    custom_keyword!(I1);
+    custom_keyword!(I32);
+    custom_keyword!(I64);
+    custom_keyword!(I128);
 }
 
-impl Parse for TermBool {
+pub enum IrType {
+    I1,
+    I32,
+    I64,
+    I128,
+}
+
+impl std::fmt::Display for IrType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::I1 => write!(f, "I1"),
+            Self::I32 => write!(f, "I32"),
+            Self::I64 => write!(f, "I64"),
+            Self::I128 => write!(f, "I128"),
+        }
+    }
+}
+
+impl Parse for IrType {
     fn parse(input: ParseStream) -> Result<Self> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(LitBool) {
-            let lit = input.parse()?;
-            Ok(TermBool::Lit(lit))
-        } else if lookahead.peek(Ident) {
-            let ident = input.parse()?;
-            Ok(TermBool::Var(ident))
+        if lookahead.peek(kw::I1) {
+            input.parse::<kw::I1>()?;
+            Ok(Self::I1)
+        } else if lookahead.peek(kw::I32) {
+            input.parse::<kw::I32>()?;
+            Ok(Self::I32)
+        } else if lookahead.peek(kw::I64) {
+            input.parse::<kw::I64>()?;
+            Ok(Self::I64)
+        } else if lookahead.peek(kw::I128) {
+            input.parse::<kw::I128>()?;
+            Ok(Self::I128)
         } else {
             Err(lookahead.error())
         }
     }
-}
-
-enum TermInt {
-    Lit(LitInt),
-    Var(Ident),
-}
-
-impl Parse for TermInt {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let lookahead = input.lookahead1();
-        if lookahead.peek(LitInt) {
-            let lit = input.parse()?;
-            Ok(TermInt::Lit(lit))
-        } else if lookahead.peek(Ident) {
-            let ident = input.parse()?;
-            Ok(TermInt::Var(ident))
-        } else {
-            Err(lookahead.error())
-        }
-    }
-}
-
-enum Branch {
-    Uncond {
-        addr: TermInt,
-    },
-    Cond {
-        cond: TermBool,
-        if_true: TermInt,
-        if_false: TermInt,
-    },
-}
-
-impl Parse for Branch {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let if_true = input.parse::<TermInt>()?;
-        if input.is_empty() {
-            Ok(Branch::Uncond { addr: if_true })
-        } else {
-            input.parse::<Token![if]>()?;
-            let cond = input.parse::<TermBool>()?;
-            input.parse::<Token![else]>()?;
-            let if_false = input.parse::<TermInt>()?;
-            Ok(Branch::Cond {
-                cond,
-                if_true,
-                if_false,
-            })
-        }
-    }
-}
-
-pub fn gen_branch(input: TokenStream) -> TokenStream {
-    // let br = parse_macro_input!(input as Branch);
-    // match br {
-    //     Branch::Uncond { addr } =>
-    // }
-    todo!("this.. :|")
 }

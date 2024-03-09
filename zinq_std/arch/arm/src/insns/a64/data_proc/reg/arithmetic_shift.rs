@@ -72,7 +72,7 @@ impl Instruction<Arm> for IntegerArithmeticAddSubShiftedreg {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("integer_arithmetic_add_sub_shiftedreg semantics")
     }
 }

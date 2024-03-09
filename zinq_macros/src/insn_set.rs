@@ -5,6 +5,13 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{parse_macro_input, Ident, Path, Result, Token};
 
+/*
+ * insn_set!(ArchName,
+ *      insn_set::cat::InsnA,
+ *      insn_set::cat::InsnB,
+ *      insn_set::cat::InsnC
+ * )
+ */
 struct InsnSet {
     isa_name: Ident,
     insns: Punctuated<Path, Token![,]>,
@@ -12,7 +19,7 @@ struct InsnSet {
 
 impl Parse for InsnSet {
     fn parse(input: ParseStream) -> Result<Self> {
-        let isa_name = input.parse::<Ident>()?;
+        let isa_name = input.parse()?;
         input.parse::<Token![,]>()?;
         let insns = input.parse_terminated(Path::parse, Token![,])?;
         Ok(InsnSet { isa_name, insns })
@@ -73,7 +80,7 @@ pub fn codegen(input: TokenStream) -> TokenStream {
         .generic("\'p")
         .arg_ref_self()
         .arg("proc", format!("&'p {isa_name}"))
-        .arg("code", "&mut zinq::insn::semantics::IrBlock<'p>")
+        .arg("code", "&mut zinq::insn::semantics::IrCtx<'p>")
         .line("match self {");
 
     for path_to_insn in insns {

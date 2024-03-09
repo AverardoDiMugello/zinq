@@ -76,7 +76,7 @@ impl<P: Processor> Emulator<System<P>> for StepEmu {
                                 .eval(&exec_ctx)
                                 .expect("Goto terminal could not be evaluated");
                             system.proc_mut().set_ip(addr.load());
-                            // I know that branches are the end of IrBlocks but the compiler doesn't.
+                            // I know that branches are the end of IrCtxs but the compiler doesn't.
                             // Until I fix that, we need this explicit break after taking the proc as
                             // mutable.
                             break;
@@ -99,7 +99,7 @@ impl<P: Processor> Emulator<System<P>> for StepEmu {
                             let next_addr = if cond.any() { true_case } else { false_case };
 
                             system.proc_mut().set_ip(next_addr.load());
-                            // I know that branches are the end of IrBlocks but the compiler doesn't.
+                            // I know that branches are the end of IrCtxs but the compiler doesn't.
                             // Until I fix that, we need this explicit break after taking the proc as
                             // mutable.
                             break;

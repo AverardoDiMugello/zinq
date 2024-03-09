@@ -1,11 +1,16 @@
 use bitvec::slice::BitSlice;
 
-pub mod semantics;
+pub mod semantics {
+    mod ir;
+    pub use ir::*;
+    mod ir_ctx;
+    pub use ir_ctx::*;
+}
 pub mod syntax;
 
 use crate::system::Processor;
 
-use semantics::IrBlock;
+use semantics::IrCtx;
 use syntax::Decodable;
 
 pub trait Instruction<P: Processor>: Decodable<Self::InsnSize> + Sized {
@@ -24,5 +29,5 @@ pub trait Instruction<P: Processor>: Decodable<Self::InsnSize> + Sized {
     fn size(&self) -> usize;
 
     /// Append the semantics of the instruction to the given IR block
-    fn semantics<'p>(&self, proc: &'p P, code: &mut IrBlock<'p>);
+    fn semantics<'p>(&self, proc: &'p P, code: &mut IrCtx<'p>);
 }

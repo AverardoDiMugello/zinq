@@ -50,7 +50,7 @@ impl Instruction<Arm> for BranchConditionalCond {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("branch_conditional_cond semantics")
     }
 }

@@ -59,7 +59,7 @@ impl Instruction<Arm> for BranchUnconditionalImmediate {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("branch_unconditional_immediate semantics")
     }
 }

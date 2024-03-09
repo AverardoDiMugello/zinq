@@ -64,7 +64,7 @@ impl Instruction<Arm> for SystemRegisterSystem {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("***FAKE!!!***system_register_system semantics")
     }
 }

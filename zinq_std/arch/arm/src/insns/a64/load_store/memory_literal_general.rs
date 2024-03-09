@@ -47,7 +47,7 @@ impl Instruction<Arm> for MemoryLiteralGeneral {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("memory_literal_general semantics")
     }
 }

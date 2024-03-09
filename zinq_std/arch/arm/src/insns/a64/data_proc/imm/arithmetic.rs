@@ -73,30 +73,31 @@ impl Instruction<Arm> for Add {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
-        let operand1 = if self.n == 31 {
-            sp_read(self.datasize, proc, code)
-        } else {
-            x_read(self.n, self.datasize, proc, code)
-        };
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
+        todo!()
+        // let operand1 = if self.n == 31 {
+        //     sp_read(self.datasize, proc, code)
+        // } else {
+        //     x_read(self.n, self.datasize, proc, code)
+        // };
 
-        let (result, _) = add_with_carry(
-            &Term::Var(operand1),
-            &Term::Lit(self.imm.clone()),
-            &Term::Lit(bitvec!(0)),
-            self.datasize,
-            code,
-        );
+        // let (result, _) = add_with_carry(
+        //     &Term::Var(operand1),
+        //     &Term::Lit(self.imm.clone()),
+        //     &Term::Lit(bitvec!(0)),
+        //     self.datasize,
+        //     code,
+        // );
 
-        if self.d == 31 {
-            let zext_result = code.assign(Expr::Zext {
-                val: Term::Var(result),
-                size: Term::Lit(BitVec::from_element(64)),
-            });
-            sp_set(Term::Var(zext_result), proc, code);
-        } else {
-            x_set(self.d, self.datasize, Term::Var(result), proc, code);
-        }
+        // if self.d == 31 {
+        //     let zext_result = code.assign(Expr::Zext {
+        //         val: Term::Var(result),
+        //         size: Term::Lit(BitVec::from_element(64)),
+        //     });
+        //     sp_set(Term::Var(zext_result), proc, code);
+        // } else {
+        //     x_set(self.d, self.datasize, Term::Var(result), proc, code);
+        // }
     }
 }
 
@@ -140,27 +141,28 @@ impl Instruction<Arm> for Adds {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
-        let operand1 = if self.n == 31 {
-            sp_read(self.datasize, proc, code)
-        } else {
-            x_read(self.n, self.datasize, proc, code)
-        };
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
+        todo!()
+        // let operand1 = if self.n == 31 {
+        //     sp_read(self.datasize, proc, code)
+        // } else {
+        //     x_read(self.n, self.datasize, proc, code)
+        // };
 
-        let (result, (n, z, c, v)) = add_with_carry(
-            &Term::Var(operand1),
-            &Term::Lit(self.imm.clone()),
-            &Term::Lit(bitvec!(0)),
-            self.datasize,
-            code,
-        );
+        // let (result, (n, z, c, v)) = add_with_carry(
+        //     &Term::Var(operand1),
+        //     &Term::Lit(self.imm.clone()),
+        //     &Term::Lit(bitvec!(0)),
+        //     self.datasize,
+        //     code,
+        // );
 
-        code.write_proc(&proc.pstate.n, Term::Var(n));
-        code.write_proc(&proc.pstate.z, Term::Var(z));
-        code.write_proc(&proc.pstate.c, Term::Var(c));
-        code.write_proc(&proc.pstate.v, Term::Var(v));
+        // code.write_proc(&proc.pstate.n, Term::Var(n));
+        // code.write_proc(&proc.pstate.z, Term::Var(z));
+        // code.write_proc(&proc.pstate.c, Term::Var(c));
+        // code.write_proc(&proc.pstate.v, Term::Var(v));
 
-        x_set(self.d, self.datasize, Term::Var(result), proc, code);
+        // x_set(self.d, self.datasize, Term::Var(result), proc, code);
     }
 }
 
@@ -204,31 +206,32 @@ impl Instruction<Arm> for Sub {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
-        let operand1 = if self.n == 31 {
-            sp_read(self.datasize, proc, code)
-        } else {
-            x_read(self.n, self.datasize, proc, code)
-        };
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
+        todo!()
+        // let operand1 = if self.n == 31 {
+        //     sp_read(self.datasize, proc, code)
+        // } else {
+        //     x_read(self.n, self.datasize, proc, code)
+        // };
 
-        let operand2 = code.assign(Expr::Not(Term::Lit(self.imm.clone())));
-        let (result, _) = add_with_carry(
-            &Term::Var(operand1),
-            &Term::Var(operand2),
-            &Term::Lit(bitvec!(1)),
-            self.datasize,
-            code,
-        );
+        // let operand2 = code.assign(Expr::Not(Term::Lit(self.imm.clone())));
+        // let (result, _) = add_with_carry(
+        //     &Term::Var(operand1),
+        //     &Term::Var(operand2),
+        //     &Term::Lit(bitvec!(1)),
+        //     self.datasize,
+        //     code,
+        // );
 
-        if self.d == 31 {
-            let zext_result = code.assign(Expr::Zext {
-                val: Term::Var(result),
-                size: Term::Lit(BitVec::from_element(64)),
-            });
-            sp_set(Term::Var(zext_result), proc, code);
-        } else {
-            x_set(self.d, self.datasize, Term::Var(result), proc, code);
-        }
+        // if self.d == 31 {
+        //     let zext_result = code.assign(Expr::Zext {
+        //         val: Term::Var(result),
+        //         size: Term::Lit(BitVec::from_element(64)),
+        //     });
+        //     sp_set(Term::Var(zext_result), proc, code);
+        // } else {
+        //     x_set(self.d, self.datasize, Term::Var(result), proc, code);
+        // }
     }
 }
 
@@ -272,27 +275,28 @@ impl Instruction<Arm> for Subs {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
-        let operand1 = if self.n == 31 {
-            sp_read(self.datasize, proc, code)
-        } else {
-            x_read(self.n, self.datasize, proc, code)
-        };
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
+        todo!()
+        // let operand1 = if self.n == 31 {
+        //     sp_read(self.datasize, proc, code)
+        // } else {
+        //     x_read(self.n, self.datasize, proc, code)
+        // };
 
-        let operand2 = code.assign(Expr::Not(Term::Lit(self.imm.clone())));
-        let (result, (n, z, c, v)) = add_with_carry(
-            &Term::Var(operand1),
-            &Term::Var(operand2),
-            &Term::Lit(bitvec!(1)),
-            self.datasize,
-            code,
-        );
+        // let operand2 = code.assign(Expr::Not(Term::Lit(self.imm.clone())));
+        // let (result, (n, z, c, v)) = add_with_carry(
+        //     &Term::Var(operand1),
+        //     &Term::Var(operand2),
+        //     &Term::Lit(bitvec!(1)),
+        //     self.datasize,
+        //     code,
+        // );
 
-        code.write_proc(&proc.pstate.n, Term::Var(n));
-        code.write_proc(&proc.pstate.z, Term::Var(z));
-        code.write_proc(&proc.pstate.c, Term::Var(c));
-        code.write_proc(&proc.pstate.v, Term::Var(v));
+        // code.write_proc(&proc.pstate.n, Term::Var(n));
+        // code.write_proc(&proc.pstate.z, Term::Var(z));
+        // code.write_proc(&proc.pstate.c, Term::Var(c));
+        // code.write_proc(&proc.pstate.v, Term::Var(v));
 
-        x_set(self.d, self.datasize, Term::Var(result), proc, code);
+        // x_set(self.d, self.datasize, Term::Var(result), proc, code);
     }
 }

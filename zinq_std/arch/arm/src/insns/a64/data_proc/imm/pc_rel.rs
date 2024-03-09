@@ -47,10 +47,11 @@ impl Instruction<Arm> for Adr {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
-        let base = code.assign(Expr::ReadProc(&proc.pc, 64));
-        let sum = code.assign(Expr::Add(Term::Var(base), Term::Lit(self.imm.clone())));
-        code.write_proc(&proc.r[self.d], Term::Var(sum));
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
+        // let base = code.assign(Expr::ReadProc(&proc.pc, 64));
+        // let sum = code.assign(Expr::Add(Term::Var(base), Term::Lit(self.imm.clone())));
+        // code.write_proc(&proc.r[self.d], Term::Var(sum));
+        todo!()
     }
 }
 
@@ -97,16 +98,17 @@ impl Instruction<Arm> for Adrp {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
-        // bits(64) base = PC[];
-        let base = code.assign(Expr::ReadProc(&proc.pc, 64));
-        // base<11:0> = Zeros(12);
-        let base = code.assign(Expr::And(
-            Term::Var(base),
-            Term::Lit(BitVec::from_element(0xfffffffffffff000)),
-        ));
-        // X[d, 64] = base + imm;
-        let sum = code.assign(Expr::Add(Term::Var(base), Term::Lit(self.imm.clone())));
-        code.write_proc(&proc.r[self.d], Term::Var(sum));
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
+        // // bits(64) base = PC[];
+        // let base = code.assign(Expr::ReadProc(&proc.pc, 64));
+        // // base<11:0> = Zeros(12);
+        // let base = code.assign(Expr::And(
+        //     Term::Var(base),
+        //     Term::Lit(BitVec::from_element(0xfffffffffffff000)),
+        // ));
+        // // X[d, 64] = base + imm;
+        // let sum = code.assign(Expr::Add(Term::Var(base), Term::Lit(self.imm.clone())));
+        // code.write_proc(&proc.r[self.d], Term::Var(sum));
+        todo!()
     }
 }

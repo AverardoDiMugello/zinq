@@ -74,7 +74,7 @@ impl Instruction<Arm> for MemoryPairGeneralPostIdx {
         4
     }
 
-    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrBlock<'p>) {
+    fn semantics<'p>(&self, proc: &'p Arm, code: &mut IrCtx<'p>) {
         todo!("****FAKE DECODE!!!****memory_pair_general_post_idx semantics")
     }
 }

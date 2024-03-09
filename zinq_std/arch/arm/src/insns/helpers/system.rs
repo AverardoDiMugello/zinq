@@ -6,7 +6,7 @@ use crate::Arm;
 // IR helpers
 
 /// Generate ConditionHolds
-pub fn condition_holds<'p>(cond: CondCode, ctx: &'p Arm, code: &mut IrBlock<'p>) -> Var {
+pub fn condition_holds<'p>(cond: CondCode, ctx: &'p Arm, code: &mut IrCtx<'p>) -> Var {
     let result = match cond {
         CondCode::EQ | CondCode::NE => {
             let z = code.assign(Expr::ReadProc(&ctx.pstate.z));
