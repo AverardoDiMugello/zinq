@@ -66,7 +66,7 @@ impl Gicv2 {
     }
 
     fn read_only(&self, offset: usize) {
-        eprintln!("[GIC] Write to RO offset: 0x{offset:x}");
+        // eprintln!("[GIC] Write to RO offset: 0x{offset:x}");
     }
 
     fn interrupt_id(&self, intid: u32) -> [u8; 4] {
@@ -135,11 +135,11 @@ impl Gicv2 {
             0x0C04 => {
                 let data = self.read_ram(0x1C04).unwrap();
                 let data = data.try_into().unwrap();
-                eprintln!("[GIC] Read 1C04: 0x{0:x}", u32::from_le_bytes(data));
+                // eprintln!("[GIC] Read 1C04: 0x{0:x}", u32::from_le_bytes(data));
                 self.to_result(Some(data))
             }
             _ => {
-                eprintln!("[GIC] Read offset: 0x{offset:x}");
+                // eprintln!("[GIC] Read offset: 0x{offset:x}");
                 self.to_result(Some([0; 4]))
             }
         }
@@ -152,16 +152,16 @@ impl Gicv2 {
         match offset {
             0x0004 => self.read_only(offset),
             0x0100 => {
-                eprintln!("[GIC] Registering interrupts 0x{data_u32:x}");
+                // eprintln!("[GIC] Registering interrupts 0x{data_u32:x}");
                 // let intID = HighestSetBit(data);
                 let int_id = 31 - data_u32.leading_zeros();
-                eprintln!("[GIC] Registering interrupt {int_id}");
+                // eprintln!("[GIC] Registering interrupt {int_id}");
             }
             0x0800 => self.read_only(offset),
             // We don't exhaustively model the GIC, so log and forward unrecognised writes to memory
             _ => {
-                eprintln!("[GIC] Unknown write offset: 0x{offset:x}");
-                eprintln!("[GIC] Unknown write data: 0x{data_u32:x}");
+                // eprintln!("[GIC] Unknown write offset: 0x{offset:x}");
+                // eprintln!("[GIC] Unknown write data: 0x{data_u32:x}");
             }
         };
         MemWriteResult(Some(()))
@@ -172,23 +172,23 @@ impl Gicv2 {
     pub fn cpu_iface_read(&mut self, offset: usize, _size: usize, _: &mut DevCtx) -> MemReadResult {
         match offset {
             0x0000 => {
-                eprintln!(
-                    "[GIC] Read GICC_CTLR 0x{0:x}",
-                    u32::from_le_bytes(self.ctlr)
-                );
+                // eprintln!(
+                //     "[GIC] Read GICC_CTLR 0x{0:x}",
+                //     u32::from_le_bytes(self.ctlr)
+                // );
                 self.to_result(Some(self.ctlr))
             }
             0x000C => {
                 let intid = self.acknowledge_interrupt();
-                eprintln!(
-                    "[GIC] Acknowledged interrupt {0}",
-                    u32::from_le_bytes(intid)
-                );
+                // eprintln!(
+                //     "[GIC] Acknowledged interrupt {0}",
+                //     u32::from_le_bytes(intid)
+                // );
                 self.to_result(Some(intid))
             }
             0x00FC => self.to_result(Some(Gicv2::IIDR)),
             _ => {
-                eprintln!("[GIC] Read offset: 0x{offset:x}");
+                // eprintln!("[GIC] Read offset: 0x{offset:x}");
                 self.to_result(Some([0; 4]))
             }
         }
@@ -205,27 +205,27 @@ impl Gicv2 {
 
         match offset {
             0x0000 => {
-                eprintln!("[GIC] GICC_CTLR = 0x{data_u32:x}");
+                // eprintln!("[GIC] GICC_CTLR = 0x{data_u32:x}");
                 self.ctlr = data_bytes;
             }
             0x000C => self.read_only(offset),
             0x00FC => self.read_only(offset),
             0x0010 => {
-                eprintln!("[GIC] End of interrupt = 0x{data_u32:x}");
+                // eprintln!("[GIC] End of interrupt = 0x{data_u32:x}");
                 self.clear_active_interrupt(data_bytes);
                 // TODO: assumes only one cpu
                 ctx.set_intr(self.cpus.first().unwrap().irq, false);
             }
             0x1000 => {
-                eprintln!("[GIC] Deactivating interrupt 0x{data_u32:x}");
+                // eprintln!("[GIC] Deactivating interrupt 0x{data_u32:x}");
                 self.clear_active_interrupt(data_bytes);
                 // TODO: assumes only one cpu
                 ctx.set_intr(self.cpus.first().unwrap().irq, false);
             }
             // We don't exhaustively model the GIC, so log and forward unrecognised writes to memory
             _ => {
-                eprintln!("[GIC] Unknown write offset: 0x{offset:x}");
-                eprintln!("[GIC] Unknown write data: 0x{data_u32:x}");
+                // eprintln!("[GIC] Unknown write offset: 0x{offset:x}");
+                // eprintln!("[GIC] Unknown write data: 0x{data_u32:x}");
             }
         };
         MemWriteResult(Some(()))

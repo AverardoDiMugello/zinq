@@ -21,7 +21,7 @@ impl PL011 {
 
     pub fn mmio_read(&mut self, offset: usize, size: usize, _: &mut DevCtx) -> MemReadResult {
         if let Some(mem) = self.zeros.get(0..size) {
-            eprintln!("[UART] Unknown read offset: {offset}");
+            // eprintln!("[UART] Unknown read offset: {offset}");
             let mut res = [0; 16];
             (&mut res[0..size]).copy_from_slice(mem);
             MemReadResult(Some(res))
@@ -32,10 +32,10 @@ impl PL011 {
 
     pub fn mmio_write(&mut self, offset: usize, data: &[u8], _: &mut DevCtx) -> MemWriteResult {
         if offset == 0 {
-            print!("{0}", data.first().unwrap());
+            print!("{0}", data.first().and_then(|c| c.as_ascii()).unwrap());
         } else {
-            eprintln!("[UART] Unknown write offset: {offset}");
-            eprintln!("[UART] Unknown write data: {0}", data.first().unwrap());
+            // eprintln!("[UART] Unknown write offset: {offset}");
+            // eprintln!("[UART] Unknown write data: {0}", data.first().unwrap());
         }
         MemWriteResult(Some(()))
     }
