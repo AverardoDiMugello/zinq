@@ -337,7 +337,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
                             || fault.accessdesc.as_ref().unwrap().acctype == AccessType::IC
                             || fault.accessdesc.as_ref().unwrap().acctype == AccessType::DC))
                 {
-                    // println!("TLB hit!");
+                    // println!("TLB hit! 0x{0:x}.", oa.address);
                     fault.level = tlbrecord.walkstate.level;
                     // assert(constraint((0 <= 'N - 1 & 'N - 1 < 128)));
                     // return((fault, __UNKNOWN_AddressDescriptor(), tlbrecord.walkstate, tlbrecord.s1descriptor[N - 1 .. 0]))
@@ -347,8 +347,6 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
                     }
                     return Some((None, tlbrecord.walkstate.clone(), descriptor));
                 }
-            } else {
-                tlbrecord = Some(TLBRecord::default());
             }
         }
 
@@ -677,40 +675,38 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
             && fault.statuscode == Fault::None
             && ((descriptor >> 10) & 0b1 != 0)
         {
-            // If tlb_enabled, tlbrecord is always initialized
-            {
-                let tlbcontext = tlbcontext.as_mut().unwrap();
-                let tlbrecord = tlbrecord.as_mut().unwrap();
+            let mut tlbcontext = tlbcontext.unwrap_or_default();
+            let mut tlbrecord = tlbrecord.unwrap_or_default();
 
-                tlbcontext.xs = walkstate.memattrs.xs;
-                tlbcontext.level = walkstate.level;
-                tlbcontext.ng = walkstate.ng;
-                tlbcontext.isd128 = walkparams.d128;
-                // tlbrecord.context = tlbcontext;
-                tlbrecord.walkstate = walkstate.clone();
-                tlbrecord.blocksize = walkparams
+            tlbcontext.xs = walkstate.memattrs.xs;
+            tlbcontext.level = walkstate.level;
+            tlbcontext.ng = walkstate.ng;
+            tlbcontext.isd128 = walkparams.d128;
+            tlbrecord.context = tlbcontext;
+            tlbrecord.walkstate = walkstate.clone();
+            tlbrecord.blocksize = walkparams
+                .tgx
+                .translation_size(walkparams.d128, walkstate.level);
+            if walkparams.d128 {
+                // assert(constraint(127 < 'N));
+                // tlbrecord.s1descriptor = descriptor[127..0]
+                tlbrecord.s1descriptor = descriptor;
+            } else {
+                // assert(constraint(63 < 'N));
+                // tlbrecord.s1descriptor[63..0] = descriptor[63..0];
+                // tlbrecord.s1descriptor[127..64] = Zeros(64)
+                tlbrecord.s1descriptor = descriptor & !((u64::MAX as u128) << 64);
+            };
+            if walkstate.contiguous.is_some_and(|val| val) {
+                tlbrecord.contigsize = walkparams
                     .tgx
-                    .translation_size(walkparams.d128, walkstate.level);
-                if walkparams.d128 {
-                    // assert(constraint(127 < 'N));
-                    // tlbrecord.s1descriptor = descriptor[127..0]
-                    tlbrecord.s1descriptor = descriptor;
-                } else {
-                    // assert(constraint(63 < 'N));
-                    // tlbrecord.s1descriptor[63..0] = descriptor[63..0];
-                    // tlbrecord.s1descriptor[127..64] = Zeros(64)
-                    tlbrecord.s1descriptor = descriptor & !((u64::MAX as u128) << 64);
-                };
-                if walkstate.contiguous.is_some_and(|val| val) {
-                    tlbrecord.contigsize = walkparams
-                        .tgx
-                        .contiguous_size(walkparams.d128, walkstate.level);
-                } else {
-                    tlbrecord.contigsize = 0;
-                };
-            }
+                    .contiguous_size(walkparams.d128, walkstate.level);
+            } else {
+                tlbrecord.contigsize = 0;
+            };
+
             // println!("TLB S1Walk fill");
-            self.s1_tlb_cache(tlbcontext.unwrap(), tlbrecord.unwrap());
+            self.s1_tlb_cache(tlbrecord);
         }
 
         if n == 64 {

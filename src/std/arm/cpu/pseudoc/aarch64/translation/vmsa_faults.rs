@@ -350,7 +350,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
                     ux = false;
                 }
 
-                pan = self.read::<pstate::PAN>() != 0 && (ur | uw | (walkparams.epan && ux));
+                pan = (self.read::<pstate::PAN>() != 0) && (ur | uw | (walkparams.epan && ux));
                 pr = pr && !pan;
                 pw = pw && !pan;
             }
@@ -398,11 +398,11 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
         }
 
         return S1AccessControls {
-            r: r,
-            w: w,
-            x: x,
+            r,
+            w,
+            x,
             gcs: false,
-            wxn: wxn,
+            wxn,
             overlay: true,
             overlay_perms: None,
         };
@@ -561,7 +561,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
 
         let por = self.aarch64_s1_por(regime);
         let bit_index = 4 * permissions.po_index;
-        let ppo = (por >> bit_index) & ((1 << ((bit_index + 3) - bit_index + 1)) - 1);
+        let ppo = (por >> bit_index) & 0b1111;
 
         // Apply privileged overlay permissions
         match ppo {
@@ -579,8 +579,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
         (r, w, x) = (pr, pw, px);
 
         if regime.has_unprivileged() {
-            let upo = (self.read::<POR_EL0>() >> bit_index)
-                & ((1 << ((bit_index + 3) - bit_index + 1)) - 1);
+            let upo = (self.read::<POR_EL0>() >> bit_index) & 0b1111;
 
             // Apply unprivileged overlay permissions
             match upo {

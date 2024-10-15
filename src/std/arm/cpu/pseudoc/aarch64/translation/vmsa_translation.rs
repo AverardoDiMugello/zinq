@@ -377,7 +377,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
             }
 
             if fault.statuscode == Fault::None {
-                self.aarch64_s1_check_permissions(fault, regime, &walkstate, &walkparams, &accdesc);
+                // self.aarch64_s1_check_permissions(fault, regime, &walkstate, &walkparams, &accdesc);
             }
 
             new_desc = descriptor;
@@ -475,18 +475,23 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
                 tlbcontext.level = walkstate.level;
                 tlbcontext.ng = walkstate.ng;
                 tlbcontext.isd128 = walkparams.d128;
-                tlbrecord = TLBRecord::default();
-                tlbrecord.walkstate = walkstate.clone();
-                tlbrecord.blocksize = walkparams
-                    .tgx
-                    .translation_size(walkparams.d128, walkstate.level);
-                if walkstate.contiguous.is_some_and(|val| val) {
-                    tlbrecord.contigsize = walkparams
+                tlbrecord = TLBRecord {
+                    context: tlbcontext,
+                    walkstate: walkstate.clone(),
+                    blocksize: walkparams
                         .tgx
-                        .contiguous_size(walkparams.d128, walkstate.level)
-                } else {
-                    tlbrecord.contigsize = 0
-                }
+                        .translation_size(walkparams.d128, walkstate.level),
+                    contigsize: if walkstate.contiguous.is_some_and(|val| val) {
+                        walkparams
+                            .tgx
+                            .contiguous_size(walkparams.d128, walkstate.level)
+                    } else {
+                        0
+                    },
+                    s1descriptor: 0,
+                    s2descriptor: 0,
+                };
+
                 // println!("TLB S1Translate fill.");
             };
             if walkparams.d128 {
@@ -496,7 +501,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
                 // tlbrecord.s1descriptor[127..64] = Zeros(64)
                 tlbrecord.s1descriptor = descriptor & !((u64::MAX as u128) << 64);
             };
-            self.s1_tlb_cache(tlbcontext, tlbrecord);
+            self.s1_tlb_cache(tlbrecord);
         }
 
         if fault.statuscode != Fault::None {
@@ -552,7 +557,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
         }
 
         let mut ipa = AddressDescriptor::create(va, Some(oa), memattrs);
-        ipa.tlbcontext = descipaddr.unwrap().tlbcontext; // From Sail for __tlb_enabled
+        ipa.tlbcontext = descipaddr.and_then(|descipaddr| descipaddr.tlbcontext); // From Sail for __tlb_enabled
         ipa.s1assured = walkstate.s1assured;
         ipa.mecid = Some(self.s1_output_mecid(
             &walkparams,

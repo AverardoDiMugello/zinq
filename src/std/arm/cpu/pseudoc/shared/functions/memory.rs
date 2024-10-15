@@ -8,7 +8,7 @@ pub struct FullAddress {
     pub address: u64,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PASpace {
     NonSecure,
     Secure,

@@ -2,7 +2,7 @@ use crate::std::arm::cpu::config::Feat;
 use crate::std::arm::cpu::pseudoc::*;
 use crate::std::arm::cpu::ArmCtx;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Regime {
     EL3,
     EL30,
@@ -17,7 +17,7 @@ impl Regime {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum TGx {
     TG4KB,
     TG16KB,
@@ -25,6 +25,15 @@ pub enum TGx {
 }
 
 impl TGx {
+    pub fn from_bits(hi: bool, lo: bool) -> Self {
+        match (hi, lo) {
+            (false, false) => panic!("Unreachable"),
+            (false, true) => TGx::TG4KB,
+            (true, false) => TGx::TG16KB,
+            (true, true) => TGx::TG64KB,
+        }
+    }
+
     pub fn granule_bits(&self) -> u64 {
         match self {
             TGx::TG4KB => 12,
@@ -125,6 +134,16 @@ pub struct TLBContext {
     pub xs: bool, // XS attribute (FEAT_XS)
 }
 
+impl TLBContext {
+    pub fn use_asid(&self) -> bool {
+        self.regime.has_unprivileged()
+    }
+
+    pub fn use_vmid(&self, el2_enabled: bool) -> bool {
+        self.regime == Regime::EL10 && el2_enabled
+    }
+}
+
 impl Default for TLBContext {
     fn default() -> Self {
         TLBContext {
@@ -149,7 +168,7 @@ impl Default for TLBContext {
 
 #[derive(Clone)]
 pub struct TLBRecord {
-    // pub context: TLBContext, // Kept separate, unlike in Sail
+    pub context: TLBContext, // Kept separate, unlike in Sail
     pub walkstate: TTWState,
     pub blocksize: u64,     // Number of bits directly mapped from IA to OA
     pub contigsize: u64,    // Number of entries log 2 marking a contiguous output range
@@ -160,6 +179,7 @@ pub struct TLBRecord {
 impl Default for TLBRecord {
     fn default() -> Self {
         Self {
+            context: TLBContext::default(),
             walkstate: TTWState::default(),
             blocksize: 0,
             contigsize: 0,

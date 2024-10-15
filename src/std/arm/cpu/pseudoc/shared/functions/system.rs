@@ -53,7 +53,7 @@ pub enum ExceptionTargetState {
     Debug,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SecurityState {
     NonSecure,
     Root,

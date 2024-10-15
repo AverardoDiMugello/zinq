@@ -72,6 +72,8 @@ mod aarch64 {
         pub use sve::*;
         mod system;
         pub use system::*;
+        mod tlbi;
+        pub use tlbi::*;
     }
     pub use functions::*;
     mod translation {
@@ -102,13 +104,48 @@ use crate::std::arm::cpu::ArmCtx;
 
 impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
     pub fn s1_tlb_lookup(&self, tlbcontext: &TLBContext) -> Option<&TLBLine> {
-        // println!("S1TLBLookup IA = 0x{0:x}.", tlbcontext.ia);
-        self.ctx.tlb_get(tlbcontext)
+        let bit_widths_to_check = match tlbcontext.tg {
+            TGx::TG4KB => [12, 21, 30, 39],
+            TGx::TG16KB => [14, 25, 36, 47],
+            TGx::TG64KB => [16, 29, 42, 64],
+        };
+
+        for (i, bit_width) in bit_widths_to_check.into_iter().enumerate() {
+            let level = (3 - i) as i64;
+            let ia_to_check = tlbcontext.ia & !((1 << bit_width) - 1) & !(0b1111_1111 << 56);
+            // println!(
+            //     "S1TLBLookup IA = 0x{0:x}, ia_base = 0x{ia_to_check:x}, TGx = {1:?}, level = {level}.",
+            //     tlbcontext.ia,
+            //     tlbcontext.tg,
+            // );
+            let tlbline = self.ctx.tlb_get(&ia_to_check);
+            if tlbline.is_some_and(|tlbline| tlbline.tlbrecord.walkstate.level == level) {
+                // println!("Hit: 0x{ia_to_check:x}");
+                return tlbline;
+            }
+        }
+        None
     }
 
-    pub fn s1_tlb_cache(&mut self, tlbcontext: TLBContext, tlbrecord: TLBRecord) {
+    pub fn s1_tlb_cache(&mut self, tlbrecord: TLBRecord) {
+        // This is the bit-width of the address range described by this translation
+        let bits_described = tlbrecord
+            .context
+            .tg
+            .translation_size(tlbrecord.context.isd128, tlbrecord.walkstate.level);
+
+        // Any IA whose first (IAsize - bits_described) bits equals this value, shares a translation with this record (until invalidated).
+        let ia_base = tlbrecord.context.ia & !((1 << bits_described) - 1) & !(0b1111_1111 << 56);
+
+        // println!(
+        //     "S1TLBCache ia = 0x{0:x}, ia_base = 0x{ia_base:x}, bits_described = {bits_described}, TGx = {1:?}, level = {2}.",
+        //     tlbrecord.context.ia,
+        //     tlbrecord.context.tg,
+        //     tlbrecord.walkstate.level,
+        // );
+
         self.ctx.tlb_insert(
-            tlbcontext,
+            ia_base,
             TLBLine {
                 valid_name: true,
                 tlbrecord,

@@ -32,7 +32,7 @@ impl<'cpu, 'ctx, 'a: 'cpu + 'ctx> ArmCtx<'cpu, 'ctx, 'a> {
     pub fn aarch64_tlbcontext_el10(&mut self, ss: SecurityState, va: u64, tg: TGx) -> TLBContext {
         let ss = ss;
         let regime = Regime::EL10;
-        // TODO: let vmid   = VMID[];
+        let vmid = self.vmid();
 
         let mut asid;
         if self.is_feat_impl(Feat::ASID2)

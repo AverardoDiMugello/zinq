@@ -235,7 +235,7 @@ impl ArmCpu {
         Self {
             impdef: Impdef::default(),
             version: Version::Armv9p4a,
-            tlb_enabled: false,
+            tlb_enabled: true,
         }
     }
 
@@ -479,7 +479,7 @@ impl Processor for ArmCpu {
         MemWriteResult(Some(()))
     }
 
-    type TLBKey = TLBContext;
+    type TLBKey = u64;
 
     type TLBValue = TLBLine;
 

@@ -869,6 +869,14 @@ impl<'a, P: Processor> ProcCtx<'a, P> {
         self.tlb.remove(k)
     }
 
+    /// Remove all entries from the TLB for which f returns true
+    pub fn tlb_flush<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&P::TLBKey, &mut P::TLBValue) -> bool,
+    {
+        self.tlb.retain(|k, v| !f(k, v));
+    }
+
     pub fn count(&self) -> u64 {
         self.count
     }
