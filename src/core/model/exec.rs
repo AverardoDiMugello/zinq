@@ -3,7 +3,6 @@ use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
 
 use bitvec::prelude::*;
-use daggy::petgraph::visit::IntoNodeIdentifiers;
 
 use crate::model::{ir::*, *};
 
@@ -27,15 +26,14 @@ impl EventCal {
     }
 }
 
-pub struct StepEmu<'e, P: Processor> {
+pub struct StepEmu<P: Processor> {
     sys: System<P>,
     event_cal: EventCal,
     timers: HashMap<TimerId, usize>,
-    on_step: Option<Box<dyn 'e + FnMut(u64, &mut ProcCtx<P>)>>,
-    on_insn: Option<Box<dyn 'e + FnMut(usize, P::Insn, &IRGraph<P>, &mut ProcCtx<P>)>>,
+    instrm: InstrmCollection,
 }
 
-impl<'e, P: Processor> StepEmu<'e, P> {
+impl<P: Processor> StepEmu<P> {
     pub fn new(sys: System<P>) -> Self {
         Self {
             sys,
@@ -43,26 +41,40 @@ impl<'e, P: Processor> StepEmu<'e, P> {
                 events: HashMap::new(),
             },
             timers: HashMap::new(),
-            on_step: None,
-            on_insn: None,
+            instrm: InstrmCollection::new(),
         }
     }
 
-    pub fn on_step<F>(&mut self, f: F)
-    where
-        F: 'e + FnMut(u64, &mut ProcCtx<P>),
-    {
-        self.on_step = Some(Box::new(f));
+    pub fn instrument(&mut self, instrm: impl Instrumentation) -> InstrmInfo {
+        let instrm_id = self.instrm.instrm_states.len();
+        let mut decl = InstrmDecl::new(instrm_id);
+        instrm.declare(&mut decl);
+        self.instrm.instrm_states.push(Box::new(instrm));
+
+        if let Some(on_br) = decl.on_br {
+            self.instrm.on_br_cbs.push(on_br);
+        }
+        if let Some(on_cbr) = decl.on_cbr {
+            self.instrm.on_cbr_cbs.push(on_cbr);
+        }
+
+        InstrmInfo { id: instrm_id }
     }
 
-    pub fn on_insn<F>(&mut self, f: F)
-    where
-        F: 'e + FnMut(usize, P::Insn, &IRGraph<P>, &mut ProcCtx<P>),
-    {
-        self.on_insn = Some(Box::new(f));
+    pub fn uninstrument<I: Instrumentation>(&mut self, instrm: InstrmInfo) -> I {
+        *self
+            .instrm
+            .instrm_states
+            .remove(instrm.id)
+            .downcast()
+            .unwrap()
     }
 
-    pub fn run(mut self, stop_time: Option<u64>) -> System<P> {
+    pub fn take(self) -> System<P> {
+        self.sys
+    }
+
+    pub fn run(&mut self, stop_time: Option<u64>) {
         let mut time = 0; // TODO: should probably be a part of System itself
 
         loop {
@@ -219,11 +231,15 @@ impl<'e, P: Processor> StepEmu<'e, P> {
                     count: proc_data.count,
                     rng_fn: proc_data.rng_fn,
                     new_dev_ctxs: Vec::new(),
+                    next_mem_write_cb_id: self.instrm.on_mem_write_cbs.len(),
+                    instrm: &mut self.instrm,
+                    new_instrm_ctxs: Vec::new(),
                 };
 
-                if let Some(on_step) = self.on_step.as_mut() {
-                    on_step(time, &mut ctx);
-                }
+                // TODO: re-implement on_step callbacks
+                // if let Some(on_step) = self.instrm.on_step.as_mut() {
+                //     on_step(time, &mut ctx);
+                // }
 
                 // Take pending interrupts
                 let mut any_intr_taken = false;
@@ -256,11 +272,12 @@ impl<'e, P: Processor> StepEmu<'e, P> {
                         .fetch_decode(ip, ir_ctx, &mut ctx)
                         .unwrap_or_else(|| panic!("Fetch error: 0x{ip:x}"));
 
-                    if let Some(on_insn) = self.on_insn.as_mut() {
-                        on_insn(ip, insn, &ir_g, &mut ctx);
-                    }
+                    // TODO: re-implement on_insn callbacks
+                    // if let Some(on_insn) = self.instrm.on_insn.as_mut() {
+                    //     on_insn(ip, insn, &ir_g, &mut ctx);
+                    // }
 
-                    StepEmu::exec(proc, &mut ctx, ir_g);
+                    StepEmu::exec(ir_g, proc, &mut ctx);
                 } else {
                     // println!("Intr taken so no instruction.");
                 }
@@ -270,15 +287,18 @@ impl<'e, P: Processor> StepEmu<'e, P> {
                 while let Some(dev_ctx) = ctx.new_dev_ctxs.pop() {
                     self.event_cal.enq_new_events(time + 1, dev_ctx)
                 }
+                let mut new_instrm_ctxs = ctx.new_instrm_ctxs;
+                while let Some(instrm_ctx) = new_instrm_ctxs.pop() {
+                    self.instrm.handle_new_instrm_events(instrm_ctx);
+                }
 
                 proc_data.count += 1;
             }
             time += 1;
         }
-        self.sys
     }
 
-    fn exec(proc: &P, ctx: &mut ProcCtx<P>, ir_graph: IRGraph<P>) {
+    fn exec(ir_graph: IRGraph<P>, proc: &P, ctx: &mut ProcCtx<P>) {
         // TODO: right now every IRGraph is a single node so we don't have to iterate
         let ir_block = ir_graph.pop();
 
@@ -286,13 +306,35 @@ impl<'e, P: Processor> StepEmu<'e, P> {
         for (ir_res, ir_op) in ir_block {
             match ir_op {
                 // System control
-                IROp::Br(target, attrs) => proc.br(interp.addr(target), attrs, ctx),
+                IROp::Br(target, attrs) => {
+                    let target = interp.addr(target);
+                    // Execute all instrumentations with an on_br callback
+                    let origin = proc.ip(ctx);
+                    for (instrm_id, dcac, instrm_br) in &ctx.instrm.on_br_cbs {
+                        let instrm = ctx.instrm.instrm_states.get_mut(*instrm_id).unwrap();
+                        dcac(instrm_br.as_ref(), instrm.as_mut(), origin, target);
+                    }
+                    proc.br(target, attrs, ctx)
+                }
                 IROp::Cbr(cond, t_target, f_target, attrs) => {
                     let (cond, t_target, f_target) = (
                         interp.bool(cond),
                         interp.addr(t_target),
                         interp.addr(f_target),
                     );
+                    // Execute all instrumentations with an on_cbr callback
+                    let origin = proc.ip(ctx);
+                    for (instrm_id, dcac, instrm_cbr) in &ctx.instrm.on_cbr_cbs {
+                        let instrm = ctx.instrm.instrm_states.get_mut(*instrm_id).unwrap();
+                        dcac(
+                            instrm_cbr.as_ref(),
+                            instrm.as_mut(),
+                            origin,
+                            cond,
+                            t_target,
+                            f_target,
+                        );
+                    }
                     proc.cbr(cond, t_target, f_target, attrs, ctx);
                 }
                 // IROp::RaiseExcp(excp) => proc.raise_exception(excp),
@@ -681,6 +723,7 @@ impl<P: Processor> Interpreter<P> {
     // }
 
     fn read_reg(&mut self, res: IRRes, op: RRegOp, ctx: &ProcCtx<P>) {
+        // TODO: this fails for reg-mapped devices
         use RRegOp::*;
         match op {
             Bit(reg) => self.new_bool(res.def0.unwrap(), ctx.reg_data[reg.0]),
@@ -695,6 +738,8 @@ impl<P: Processor> Interpreter<P> {
     }
 
     fn write_reg(&mut self, op: WRegOp, ctx: &mut ProcCtx<P>) {
+        // TODO: this fails for reg-mapped devices
+        // TODO: this ignore reg-write instrumentation
         use WRegOp::*;
         match op {
             Bit(reg, val) => *ctx.reg_data.get_mut(reg.0).unwrap() = self.bool(val),

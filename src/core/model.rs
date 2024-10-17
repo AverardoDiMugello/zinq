@@ -617,6 +617,9 @@ pub struct ProcCtx<'a, P: Processor> {
     count: u64,
     rng_fn: Option<fn() -> u64>,
     new_dev_ctxs: Vec<DevCtx>,
+    instrm: &'a mut InstrmCollection,
+    next_mem_write_cb_id: usize,
+    new_instrm_ctxs: Vec<InstrmCtx>,
 }
 
 impl<'a, P: Processor> ProcCtx<'a, P> {
@@ -674,6 +677,35 @@ impl<'a, P: Processor> ProcCtx<'a, P> {
             self.new_dev_ctxs.push(dev_ctx);
         } else {
             // The (common) case of a register corresponding to concrete binary data
+
+            // Check for instrumentation
+            if !self.instrm.on_reg_write_cbs.is_empty() {
+                let offset = self
+                    .reg_offsets
+                    .get(&TypeId::of::<T::Register>())
+                    .unwrap_or_else(|| panic!("Unknown Register {0}.", T::NAME))
+                    .clone();
+
+                let old_val = self
+                    .reg_data
+                    .get((offset + T::OFFSET)..(offset + T::OFFSET + T::LEN))
+                    .unwrap()
+                    .load();
+                let new_val = val;
+                for (instrm_id, dcac, instrm_reg_write) in &self.instrm.on_reg_write_cbs {
+                    let instrm = self.instrm.instrm_states.get_mut(*instrm_id).unwrap();
+                    let mut instrm_ctx = InstrmCtx::new(*instrm_id, self.next_mem_write_cb_id);
+                    dcac(
+                        instrm_reg_write.as_ref(),
+                        instrm.as_mut(),
+                        old_val,
+                        new_val,
+                        &mut instrm_ctx,
+                    );
+                    self.new_instrm_ctxs.push(instrm_ctx);
+                }
+            }
+
             let offset = self
                 .reg_offsets
                 .get(&TypeId::of::<T::Register>())
@@ -846,6 +878,36 @@ impl<'a, P: Processor> ProcCtx<'a, P> {
             }
             MemRegion::Ram { mem, .. } => {
                 let offset = addr - region_base;
+
+                // Check for instrumentation
+                if !self.instrm.on_mem_write_cbs.is_empty() {
+                    let mut res = [0; 8];
+                    let old_val = mem.get(offset..offset + 8).unwrap();
+                    res.copy_from_slice(&old_val);
+                    let old_val = u64::from_le_bytes(res);
+
+                    let new_val = data;
+                    res.copy_from_slice(&new_val);
+                    let new_val = u64::from_le_bytes(res);
+
+                    for (instrm_id, instrm_addr, instrm_len, dcac, instrm_proc_st) in
+                        &self.instrm.on_mem_write_cbs
+                    {
+                        if *instrm_addr <= addr && addr <= *instrm_addr + instrm_len {
+                            let instrm = self.instrm.instrm_states.get_mut(*instrm_id).unwrap();
+                            let mut instrm_ctx =
+                                InstrmCtx::new(*instrm_id, self.next_mem_write_cb_id);
+                            dcac(
+                                instrm_proc_st.as_ref(),
+                                instrm.as_mut(),
+                                old_val,
+                                new_val,
+                                &mut instrm_ctx,
+                            );
+                            self.new_instrm_ctxs.push(instrm_ctx);
+                        }
+                    }
+                }
                 let mem_mut = mem.get_mut(offset..offset + data.len()).unwrap();
                 mem_mut.copy_from_slice(data);
                 MemWriteResult(Some(()))
@@ -1460,3 +1522,207 @@ pub struct TimerId {
 }
 
 pub type DowncastAndCallTimer = Box<dyn Fn(&mut dyn Any, &mut dyn Any, &mut DevCtx)>;
+
+// Instrumentation
+
+pub trait Instrumentation: 'static {
+    fn declare(&self, decl: &mut InstrmDecl<Self>)
+    where
+        Self: Sized;
+}
+
+pub struct InstrmDecl<I: Instrumentation> {
+    id: InstrmId,
+    on_br: Option<(InstrmId, DowncastAndCallOnBr, Box<dyn Any>)>,
+    on_cbr: Option<(InstrmId, DowncastAndCallOnCbr, Box<dyn Any>)>,
+    on_reg_write: Option<(InstrmId, DowncastAndCallOnRegWrite, Box<dyn Any>)>,
+    i: PhantomData<I>,
+}
+
+impl<I: Instrumentation> InstrmDecl<I> {
+    fn new(id: usize) -> Self {
+        Self {
+            id,
+            on_br: None,
+            on_cbr: None,
+            on_reg_write: None,
+            i: PhantomData,
+        }
+    }
+
+    pub fn on_br<F>(&mut self, f: F) -> &mut Self
+    where
+        F: 'static + Fn(&mut I, usize, usize),
+    {
+        self.on_br = Some((
+            self.id,
+            Box::new(|erased_fn, erased_instrm, origin, target| {
+                let on_br = erased_fn
+                    .downcast_ref::<F>()
+                    .expect("Failed to downcast on_br cb to original type.");
+
+                let instrm = erased_instrm
+                    .downcast_mut::<I>()
+                    .expect("Failed to downcast instrumentation struct to original type.");
+
+                on_br(instrm, origin, target)
+            }),
+            Box::new(f),
+        ));
+        self
+    }
+
+    pub fn on_cbr<F>(&mut self, f: F) -> &mut Self
+    where
+        F: 'static + Fn(&mut I, usize, bool, usize, usize),
+    {
+        self.on_cbr = Some((
+            self.id,
+            Box::new(
+                |erased_fn, erased_instrm, origin, cond, t_target, f_target| {
+                    let on_cbr = erased_fn
+                        .downcast_ref::<F>()
+                        .expect("Failed to downcast on_cbr cb to original type.");
+
+                    let instrm = erased_instrm
+                        .downcast_mut::<I>()
+                        .expect("Failed to downcast instrumentation struct to original type.");
+
+                    on_cbr(instrm, origin, cond, t_target, f_target)
+                },
+            ),
+            Box::new(f),
+        ));
+        self
+    }
+
+    pub fn on_reg_write<T: RegisterView, F>(&mut self, f: F) -> &mut Self
+    where
+        F: 'static + Fn(&mut I, u64, u64, &mut InstrmCtx),
+    {
+        self.on_reg_write = Some((
+            self.id,
+            Box::new(|erased_fn, erased_instrm, old_val, new_val, instrm_ctx| {
+                let on_reg_write = erased_fn
+                    .downcast_ref::<F>()
+                    .expect("Failed to downcast on_reg_write cb to original type.");
+
+                let instrm = erased_instrm
+                    .downcast_mut::<I>()
+                    .expect("Failed to downcast instrumentation struct to original type.");
+
+                on_reg_write(instrm, old_val, new_val, instrm_ctx);
+            }),
+            Box::new(f),
+        ));
+        self
+    }
+}
+
+pub struct InstrmInfo {
+    id: InstrmId,
+}
+
+pub struct InstrmCtx {
+    instrm_id: InstrmId,
+    next_mem_write_cb_id: usize,
+    new_events: Vec<InstrmEvent>,
+}
+
+impl InstrmCtx {
+    fn new(instrm_id: InstrmId, next_mem_write_cb_id: usize) -> Self {
+        Self {
+            instrm_id,
+            next_mem_write_cb_id,
+            new_events: Vec::new(),
+        }
+    }
+
+    pub fn uninstrm(&mut self, id: InstrmCbId) {
+        self.new_events.push(InstrmEvent::Uninstrm(id));
+    }
+
+    pub fn on_mem_write<I, F>(&mut self, addr: usize, len: usize, f: F) -> InstrmCbId
+    where
+        I: Instrumentation,
+        F: 'static + Fn(&mut I, u64, u64, &mut InstrmCtx),
+    {
+        self.new_events.push(InstrmEvent::Mem(
+            addr,
+            len,
+            Box::new(|erased_fn, erased_instrm, old_val, new_val, instrm_ctx| {
+                let on_mem_write = erased_fn
+                    .downcast_ref::<F>()
+                    .expect("Failed to downcast on_mem_write cb to original type.");
+
+                let instrm = erased_instrm
+                    .downcast_mut::<I>()
+                    .expect("Failed to downcast instrumentation struct to original type.");
+
+                on_mem_write(instrm, old_val, new_val, instrm_ctx);
+            }),
+            Box::new(f),
+        ));
+        let ret = InstrmCbId(self.next_mem_write_cb_id);
+        self.next_mem_write_cb_id += 1;
+        ret
+    }
+}
+
+enum InstrmEvent {
+    Uninstrm(InstrmCbId),
+    Mem(usize, usize, DowncastAndCallOnMemWrite, Box<dyn Any>),
+}
+
+type InstrmId = usize;
+
+// TODO: instrm ID's are not stable!!!
+pub struct InstrmCbId(usize);
+
+type DowncastAndCallOnBr = Box<dyn Fn(&dyn Any, &mut dyn Any, usize, usize)>;
+
+type DowncastAndCallOnCbr = Box<dyn Fn(&dyn Any, &mut dyn Any, usize, bool, usize, usize)>;
+
+type DowncastAndCallOnRegWrite = Box<dyn Fn(&dyn Any, &mut dyn Any, u64, u64, &mut InstrmCtx)>;
+
+type DowncastAndCallOnMemWrite = Box<dyn Fn(&dyn Any, &mut dyn Any, u64, u64, &mut InstrmCtx)>;
+
+struct InstrmCollection {
+    instrm_states: Vec<Box<dyn Any>>,
+    on_br_cbs: Vec<(InstrmId, DowncastAndCallOnBr, Box<dyn Any>)>,
+    on_cbr_cbs: Vec<(InstrmId, DowncastAndCallOnCbr, Box<dyn Any>)>,
+    on_reg_write_cbs: Vec<(InstrmId, DowncastAndCallOnRegWrite, Box<dyn Any>)>,
+    on_mem_write_cbs: Vec<(
+        InstrmId,
+        usize,
+        usize,
+        DowncastAndCallOnMemWrite,
+        Box<dyn Any>,
+    )>,
+}
+
+impl InstrmCollection {
+    fn new() -> Self {
+        Self {
+            instrm_states: Vec::new(),
+            on_br_cbs: Vec::new(),
+            on_cbr_cbs: Vec::new(),
+            on_reg_write_cbs: Vec::new(),
+            on_mem_write_cbs: Vec::new(),
+        }
+    }
+
+    fn handle_new_instrm_events(&mut self, instrm_ctx: InstrmCtx) {
+        for event in instrm_ctx.new_events {
+            match event {
+                InstrmEvent::Mem(addr, len, dcac, cb) => {
+                    self.on_mem_write_cbs
+                        .push((addr, len, instrm_ctx.instrm_id, dcac, cb))
+                }
+                InstrmEvent::Uninstrm(id) => {
+                    let _unused = self.on_mem_write_cbs.remove(id.0);
+                }
+            }
+        }
+    }
+}

@@ -32,6 +32,7 @@ impl PL011 {
 
     pub fn mmio_write(&mut self, offset: usize, data: &[u8], _: &mut DevCtx) -> MemWriteResult {
         if offset == 0 {
+            // TODO: this should be a configurable host representation of a character device
             print!("{0}", data.first().and_then(|c| c.as_ascii()).unwrap());
         } else {
             // eprintln!("[UART] Unknown write offset: {offset}");

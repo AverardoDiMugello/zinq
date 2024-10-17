@@ -1,13 +1,58 @@
+use std::collections::BTreeMap;
 use std::fs;
 
 use zinq::core::model::{exec::StepEmu, *};
 use zinq::std::arm::*;
 
+struct CtrlFlowTrace {
+    edges: BTreeMap<(usize, usize), u32>,
+}
+
+impl CtrlFlowTrace {
+    fn new() -> Self {
+        Self {
+            edges: BTreeMap::new(),
+        }
+    }
+
+    fn record_edge(&mut self, origin: usize, target: usize) {
+        let edge_entry = self.edges.entry((origin, target)).or_insert(0);
+        *edge_entry = edge_entry.saturating_add(1);
+    }
+
+    fn total_edges(&self) -> usize {
+        self.edges.len()
+    }
+
+    fn show_map(&self) {
+        for ((origin, target), count) in self.edges.iter() {
+            println!("0x{origin:x} -> 0x{target:x}: {count}");
+        }
+        println!("Total control-flow edges hit: {0}", self.total_edges());
+    }
+}
+
+impl Instrumentation for CtrlFlowTrace {
+    fn declare(&self, decl: &mut InstrmDecl<Self>)
+    where
+        Self: Sized,
+    {
+        decl.on_br(Self::record_edge)
+            .on_cbr(|me, origin, cond, t_target, f_target| {
+                if cond {
+                    me.record_edge(origin, t_target);
+                } else {
+                    me.record_edge(origin, f_target);
+                }
+            });
+    }
+}
+
 fn main() {
-    // Define
+    // Define the same machine as sail_linux_boot.rs
     let mut vm = System::new("Sail ARM Machine");
     let bus = vm.sysbus();
-    // These devices are detailed in sail.dts
+
     let cpu0 = vm.add_proc("cpu0", ArmCpu::v9p4a());
     let intc = vm.add_dev("interrupt-controller", Gicv2::new(bus, 0x2c001000, [&cpu0]));
     vm.add_dev("timer", GTimer::new(cpu0.id(), &intc, 13, 14, 11, 10));
@@ -16,7 +61,6 @@ fn main() {
         PL011::new(bus, 0x3c000000, intc.intr_in("PPI", 5)),
     );
     vm.add_ram("memory", 0x80000000, 0x9000000);
-    // These devices are undocumented and used by bootloader.bin but easily RE'd
     vm.add_dev("TUBE", Tube::new(bus, 0x13000000));
     vm.add_ram("boot-memory", 0xdead0000, 0x20000);
 
@@ -26,15 +70,21 @@ fn main() {
     vm.init_mem(0x82080000, &fs::read("sail_bins/Image").unwrap());
     init_cpu(vm.proc_mut(cpu0.id()).unwrap(), 0x80000000);
 
-    // Run. 24587251 is the end of boot, 0x4000d4 is the first user-space instruction
+    // Instrument and run. 24587251 is the end of boot, 0x4000d4 is the first user-space instruction
+    // let mut edge_map = BTreeMap::new();
     let mut emu = StepEmu::new(vm);
+    let trace = emu.instrument(CtrlFlowTrace::new());
     emu.run(Some(24587251));
 
+    let trace: CtrlFlowTrace = emu.uninstrument(trace);
     let sys = emu.take();
     assert_eq!(sys.proc(cpu0.id()).unwrap().read::<PC>(), 0x4000d4);
+    assert_eq!(trace.total_edges(), 22116);
+    trace.show_map();
 }
 
-// Undocumented device that the Sail bootoader uses. Appers to behave as a stdout serial port
+// Sail model definition/initialization, same as sail_linux_boot.rs
+
 struct Tube {
     bus: MemParent,
     base: usize,
