@@ -14,6 +14,8 @@ The example can be run with the below command. The only dependencies are [cargo 
 cargo run --release --example sail_linux_boot # Or ctrl_flow_trace
 ```
 
+Notes on the current architecure of Zinq can be found in the docs [here](/docs/Architecture.md).
+
 ### Performance
 
 In release mode, the Linux boot in this example takes about 3-3.5 minutes with an emulated TLB and 6-7 minutes without one. With the emulated TLB, this is roughly 10x faster than Sail's C emulator (all perf-related qualifications aside) but still far slower than the performance goals of this project. Even with the emulated TLB, nearly all of the current runtime of this example is spent in ARM address translation code reading system register data for the TLB lookup. This can be easily optimized away in the near future. The control-flow trace only takes about 3.5 minutes, which means the instrumentation is pretty lightweight relative to the uninstrumented performance. However, this doesn't have much significance prior to the first round of optimizations of the base emulation.
