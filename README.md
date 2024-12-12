@@ -1,3 +1,5 @@
+**ATTENTION:** A very large re-architecting is currently underway locally and very nearly completed. If not for a brief detour to build and ship another project, it would be ready by now. Don't worry, this project is not dead.
+
 # Zinq
 
 Zinq is a framework for building deterministic hardware emulators with APIs to instrument and analyze the running software. Zinq is a recursive acronym for "Zinq is not QEMU" and seeks to address the short-comings of using QEMU for software analysis. Zinq's architecture is currently in an early research and prototyping phase.
